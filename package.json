@@ -1,0 +1,23 @@
+{
+  "name": "epic-mendeleev",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "jszip": "^3.10.1",
+    "music-metadata-browser": "^2.5.11",
+    "vite": "^8.2.2",
+    "wavesurfer.js": "^7.12.11"
+  }
+}
