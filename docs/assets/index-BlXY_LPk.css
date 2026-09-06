@@ -286,6 +286,7 @@ body {
   width: 100%;
 }
 .waveform-markers-overlay {
+  display: none !important;
   pointer-events: none;
   z-index: 5;
   position: absolute;

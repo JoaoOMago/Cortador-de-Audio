@@ -30,7 +30,7 @@ var __create=Object.create,__defProp=Object.defineProperty,__getOwnPropDesc=Obje
         <div class="waveform-container"></div>
         <div class="waveform-markers-overlay">
           <div class="waveform-marker marker-cursor hidden">
-            <div class="marker-flag">📍 <span class="marker-cursor-text">00:00.00</span></div>
+            <div class="marker-flag"><span class="marker-cursor-text">00:00.00</span></div>
             <div class="marker-bar"></div>
           </div>
           <div class="waveform-marker marker-start hidden">
