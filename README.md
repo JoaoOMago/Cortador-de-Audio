@@ -1,7 +1,7 @@
 
 [Site](https://JoaoOMago.github.io/Cortador-de-Audio)
 
-# AudioTrim Studio 🎵✂️
+# vox acies 🎵✂️
 
 Editor de áudio em lote estático e **100% client-side**, desenvolvido para rodar diretamente no navegador e ser hospedado gratuitamente no **GitHub Pages** através da pasta `/docs`.
 
