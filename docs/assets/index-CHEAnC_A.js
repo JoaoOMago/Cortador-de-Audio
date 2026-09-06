@@ -83,17 +83,17 @@ var __create=Object.create,__defProp=Object.defineProperty,__getOwnPropDesc=Obje
       <!-- Cut Action Bar -->
       <div class="cut-controls-bar">
         <div class="cursor-info-badge">
-          <span class="cursor-icon">📍</span>
+          <span class="cursor-icon"></span>
           <span>Cursor: </span>
           <strong class="cursor-time-val">00:00.00</strong>
         </div>
 
         <div class="cut-buttons-group">
           <button type="button" class="btn btn-cut btn-cut-start" title="Remove todo o áudio antes do cursor (vinheta de início)" disabled>
-            ✂️ Cortar início até aqui
+            Cortar início até aqui
           </button>
           <button type="button" class="btn btn-cut btn-cut-end" title="Remove todo o áudio depois do cursor (vinheta de encerramento)" disabled>
-            Cortar daqui até o fim ✂️
+            Cortar daqui até o fim 
           </button>
           <button type="button" class="btn btn-undo-cut" title="Restaura o áudio integral original" disabled>
             ↺ Desfazer corte
@@ -122,7 +122,7 @@ var __create=Object.create,__defProp=Object.defineProperty,__getOwnPropDesc=Obje
         </div>
         <div class="cover-actions">
           <label class="btn btn-secondary btn-upload-cover">
-            🖼️ Trocar capa
+            Trocar capa
             <input type="file" class="cover-file-input" accept="image/*" style="display: none;" />
           </label>
           <button type="button" class="btn btn-danger-soft btn-remove-cover hidden">
@@ -158,13 +158,13 @@ var __create=Object.create,__defProp=Object.defineProperty,__getOwnPropDesc=Obje
         <div class="lrc-section">
           <div class="lrc-header">
             <button type="button" class="btn btn-tiny btn-toggle-lrc">
-              <span>📜 Letra / Sincronia (.LRC)</span>
+              <span>Letra / Sincronia (.LRC)</span>
               <span class="lrc-status-tag">Sem letra</span>
               <span class="lrc-arrow">▼</span>
             </button>
             <div class="lrc-header-actions hidden">
               <label class="btn btn-tiny btn-load-lrc" title="Carregar arquivo .lrc ou .txt">
-                📂 Importar .lrc
+                Importar .lrc
                 <input type="file" class="lrc-file-input" accept=".lrc,.txt" style="display: none;" />
               </label>
               <button type="button" class="btn btn-tiny btn-download-lrc hidden" title="Baixar arquivo .lrc ajustado">
