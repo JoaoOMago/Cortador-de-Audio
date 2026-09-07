@@ -2,6 +2,8 @@ import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/plugins/regions';
 import { readAudioMetadata } from './metadataReader.js';
 import { downloadSingleFile } from './zipExporter.js';
+import { processAudioTrack, getFFmpeg } from './audioProcessor.js';
+import { showToast } from './toast.js';
 
 /**
  * Formats seconds into MM:SS.cs (minutes:seconds.hundredths)
@@ -53,7 +55,9 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     processedBlob: null,
     processedFilename: '',
     isDestroyed: false,
-    isPreviewingTrim: false
+    isPreviewingTrim: false,
+    isProcessingSingle: false,
+    errorLog: []
   };
 
   // Card Skeleton HTML
@@ -204,9 +208,17 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       </div>
       <div class="card-footer-actions">
         <span class="process-msg"></span>
-        <button type="button" class="btn btn-success btn-download-track hidden">
-          ⬇ Baixar esta faixa (.mp3)
-        </button>
+        <div class="card-footer-buttons">
+          <button type="button" class="btn btn-primary btn-download-single" title="Processar e baixar esta faixa individualmente">
+            ⬇ Baixar esta faixa (.mp3)
+          </button>
+          <button type="button" class="btn btn-success btn-download-track hidden">
+            ⬇ Baixar resultado (.mp3)
+          </button>
+          <button type="button" class="btn btn-danger-soft btn-view-log hidden" title="Ver detalhes do erro">
+            📋 Ver log de erro
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -242,6 +254,8 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   const elProgressBarFill = cardElement.querySelector('.progress-bar-fill');
   const elProcessMsg = cardElement.querySelector('.process-msg');
   const elBtnDownloadTrack = cardElement.querySelector('.btn-download-track');
+  const elBtnDownloadSingle = cardElement.querySelector('.btn-download-single');
+  const elBtnViewLog = cardElement.querySelector('.btn-view-log');
 
   // Update Status helper
   function setStatus(status, text) {
@@ -520,11 +534,89 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   elInputAlbum.addEventListener('input', onMetaInput);
   elInputYear.addEventListener('input', onMetaInput);
 
-  // Download single track handler
+  // Download single already-processed track handler
   elBtnDownloadTrack.addEventListener('click', () => {
     if (state.processedBlob && state.processedFilename) {
       downloadSingleFile(state.processedBlob, state.processedFilename);
     }
+  });
+
+  // Individual download: process + download a single track independently
+  elBtnDownloadSingle.addEventListener('click', async () => {
+    if (state.isProcessingSingle) return;
+    state.isProcessingSingle = true;
+    elBtnDownloadSingle.disabled = true;
+    elBtnDownloadSingle.textContent = '⏳ Processando...';
+    elProgressBarWrapper.classList.remove('hidden');
+    elProgressBarFill.style.width = '0%';
+    elProcessMsg.textContent = 'Iniciando processamento individual...';
+    elBtnDownloadTrack.classList.add('hidden');
+    elBtnViewLog.classList.add('hidden');
+    state.errorLog = [];
+
+    try {
+      // Warm up FFmpeg
+      elProcessMsg.textContent = 'Carregando motor FFmpeg...';
+      await getFFmpeg((status) => {
+        elProcessMsg.textContent = status;
+      });
+
+      elProcessMsg.textContent = `Processando "${state.title}"...`;
+
+      const result = await processAudioTrack({
+        file: state.file,
+        originalName: state.originalName,
+        cutStart: state.cutStart,
+        cutEnd: state.cutEnd,
+        duration: state.duration,
+        title: state.title,
+        artist: state.artist,
+        album: state.album,
+        year: state.year,
+        coverBlob: state.coverBlob,
+        onProgress: (ratio) => {
+          elProgressBarFill.style.width = `${Math.round(ratio * 100)}%`;
+          elProcessMsg.textContent = `Convertendo áudio... ${Math.round(ratio * 100)}%`;
+        }
+      });
+
+      state.processedBlob = result.blob;
+      state.processedFilename = result.filename;
+      setStatus('ready', 'Pronto ✓');
+      elProgressBarWrapper.classList.add('hidden');
+      elProcessMsg.textContent = `Salvo como: ${result.filename}`;
+      elBtnDownloadTrack.classList.remove('hidden');
+
+      // Trigger direct download
+      downloadSingleFile(result.blob, result.filename);
+      showToast(`"${state.title}" baixado com sucesso!`, 'success');
+
+    } catch (err) {
+      console.error(`Erro ao processar faixa individual:`, err);
+      const timestamp = new Date().toLocaleString('pt-BR');
+      state.errorLog.push({
+        timestamp,
+        message: err.message || 'Erro desconhecido',
+        stack: err.stack || '',
+        context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
+      });
+
+      setStatus('error', 'Erro');
+      elProgressBarWrapper.classList.add('hidden');
+      elProcessMsg.textContent = `Erro: ${err.message || 'Falha no processamento'}`;
+      elBtnViewLog.classList.remove('hidden');
+      showToast(`Erro ao processar "${state.title}". Clique em "Ver log" para detalhes.`, 'error', 5000);
+
+    } finally {
+      state.isProcessingSingle = false;
+      elBtnDownloadSingle.disabled = false;
+      elBtnDownloadSingle.textContent = '⬇ Baixar esta faixa (.mp3)';
+    }
+  });
+
+  // Error log modal viewer
+  elBtnViewLog.addEventListener('click', () => {
+    showErrorLogModal(state);
   });
 
   // Remove Card handler
@@ -598,6 +690,109 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       setStatus('error', 'Erro');
       elProgressBarWrapper.classList.add('hidden');
       elProcessMsg.textContent = `Erro: ${errMsg}`;
+      const timestamp = new Date().toLocaleString('pt-BR');
+      state.errorLog.push({
+        timestamp,
+        message: errMsg || 'Erro desconhecido',
+        stack: '',
+        context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
+      });
+      elBtnViewLog.classList.remove('hidden');
     }
   };
+}
+
+/**
+ * Opens a modal overlay showing the error log for a track.
+ * @param {Object} state - Track state with errorLog array
+ */
+function showErrorLogModal(state) {
+  // Remove existing modal if any
+  const existing = document.getElementById('error-log-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'error-log-modal';
+  overlay.className = 'error-log-overlay';
+
+  const logEntries = state.errorLog.length > 0
+    ? state.errorLog.map((entry, i) => {
+        return `━━━ Erro #${i + 1} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🕐 Data/Hora: ${entry.timestamp}
+📄 Contexto:  ${entry.context}
+❌ Mensagem:  ${entry.message}
+${entry.stack ? `\n📋 Stack Trace:\n${entry.stack}` : ''}`;
+      }).join('\n\n')
+    : 'Nenhum erro registrado.';
+
+  const fullLog = `════════════════════════════════════════════════
+  LOG DE ERROS — ${state.title || state.originalName}
+════════════════════════════════════════════════
+Arquivo original: ${state.originalName}
+Total de erros: ${state.errorLog.length}
+
+${logEntries}
+`;
+
+  overlay.innerHTML = `
+    <div class="error-log-modal-content">
+      <div class="error-log-header">
+        <h3>📋 Log de Erros — ${state.title || state.originalName}</h3>
+        <div class="error-log-header-actions">
+          <button type="button" class="btn btn-secondary btn-copy-log" title="Copiar log para a área de transferência">
+            📋 Copiar log
+          </button>
+          <button type="button" class="btn btn-icon btn-close-log" title="Fechar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <pre class="error-log-body">${fullLog.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+      <div class="error-log-footer">
+        <span class="error-log-count">${state.errorLog.length} erro(s) registrado(s)</span>
+        <button type="button" class="btn btn-secondary btn-close-log-footer">Fechar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Close handlers
+  const closeModal = () => {
+    overlay.style.opacity = '0';
+    setTimeout(() => overlay.remove(), 200);
+  };
+
+  overlay.querySelector('.btn-close-log').addEventListener('click', closeModal);
+  overlay.querySelector('.btn-close-log-footer').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  document.addEventListener('keydown', function onEsc(e) {
+    if (e.key === 'Escape') {
+      closeModal();
+      document.removeEventListener('keydown', onEsc);
+    }
+  });
+
+  // Copy to clipboard
+  overlay.querySelector('.btn-copy-log').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(fullLog);
+      const btn = overlay.querySelector('.btn-copy-log');
+      btn.textContent = '✓ Copiado!';
+      setTimeout(() => { btn.textContent = '📋 Copiar log'; }, 2000);
+    } catch (err) {
+      console.error('Erro ao copiar:', err);
+    }
+  });
+
+  // Animate in
+  requestAnimationFrame(() => {
+    overlay.style.opacity = '1';
+  });
 }
