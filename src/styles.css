@@ -181,6 +181,8 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .list-count {
@@ -191,6 +193,57 @@ body {
 
 .list-count strong {
   color: #fff;
+}
+
+.toolbar-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+}
+
+.timeout-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: help;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeout-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeout-input-group input {
+  width: 54px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  padding: 4px 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  font-family: var(--font-mono);
+  transition: border-color 0.15s ease;
+}
+
+.timeout-input-group input:focus {
+  border-color: var(--border-focus);
+}
+
+.timeout-input-group span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* Track Card Component */
@@ -336,6 +389,88 @@ body {
 
 .waveform-container {
   width: 100%;
+}
+
+/* Waveform Markers Overlay & Vertical Bars */
+.waveform-markers-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.waveform-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 6;
+  transition: left 0.05s ease-out;
+}
+
+.waveform-marker .marker-bar {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  margin: 0 auto;
+}
+
+.waveform-marker .marker-flag {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 1. Selection / Cursor Vertical Bar (Where the user clicked) */
+.marker-cursor .marker-bar {
+  background: #38bdf8;
+  box-shadow: 0 0 10px #38bdf8, 0 0 3px #fff;
+}
+
+.marker-cursor .marker-flag {
+  top: 4px;
+  background: #0284c7;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* 2. Start Cut Vertical Bar (Início Cortado) */
+.marker-start .marker-bar {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981, 0 0 2px #fff;
+}
+
+.marker-start .marker-flag {
+  bottom: 4px;
+  background: #059669;
+  color: #fff;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+/* 3. End Cut Vertical Bar (Fim Cortado) */
+.marker-end .marker-bar {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444, 0 0 2px #fff;
+}
+
+.marker-end .marker-flag {
+  bottom: 4px;
+  background: #dc2626;
+  color: #fff;
+  border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
 /* Region Labels on Waveform */
@@ -668,11 +803,23 @@ body {
   gap: 12px;
 }
 
+.error-log-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .error-log-header h3 {
   font-size: 1rem;
   font-weight: 600;
   color: #fff;
   margin: 0;
+}
+
+.error-log-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
 }
 
 .error-log-header-actions {

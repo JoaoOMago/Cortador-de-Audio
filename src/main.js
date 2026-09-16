@@ -160,6 +160,16 @@ btnDownloadAll.addEventListener('click', async () => {
   const processedResults = [];
   let successCount = 0;
 
+  // Retrieve configured timeout
+  const timeoutInput = document.getElementById('input-timeout-limit');
+  let timeoutSec = 120;
+  if (timeoutInput && timeoutInput.value) {
+    const mins = parseFloat(timeoutInput.value);
+    if (!isNaN(mins) && mins > 0) {
+      timeoutSec = Math.round(mins * 60);
+    }
+  }
+
   try {
     // 1. Ensure FFmpeg is warmed up
     globalProgressText.textContent = 'Carregando motor FFmpeg WebAssembly...';
@@ -189,6 +199,7 @@ btnDownloadAll.addEventListener('click', async () => {
           album: state.album,
           year: state.year,
           coverBlob: state.coverBlob,
+          timeoutSeconds: timeoutSec,
           onProgress: (ratio) => {
             controller.setProcessingState(true, ratio);
             const overallRatio = (i + ratio) / total;
@@ -201,12 +212,12 @@ btnDownloadAll.addEventListener('click', async () => {
         successCount++;
       } catch (trackError) {
         console.error(`Erro ao processar faixa #${trackNum}:`, trackError);
-        controller.setErrorState(trackError.message || 'Falha no processamento');
+        controller.setErrorState(trackError.message || 'Falha no processamento', trackError);
       }
     }
 
     if (processedResults.length === 0) {
-      throw new Error('Nenhuma faixa pôde ser processada com sucesso.');
+      throw new Error('Nenhuma faixa pôde ser processada com sucesso. Verifique os logs de erro individuais nos cards.');
     }
 
     // 3. Package all into ZIP
@@ -220,8 +231,11 @@ btnDownloadAll.addEventListener('click', async () => {
     });
 
     globalProgressFill.style.width = '100%';
-    globalProgressText.textContent = `Concluído! ${successCount} de ${total} faixas exportadas com sucesso.`;
-    showToast(`ZIP gerado com sucesso! (${successCount} músicas)`, 'success', 5000);
+    const summaryMsg = successCount === total 
+      ? `Concluído! Todas as ${total} faixas exportadas com sucesso.`
+      : `Concluído com avisos! ${successCount} de ${total} faixas exportadas (${total - successCount} falharam).`;
+    globalProgressText.textContent = summaryMsg;
+    showToast(summaryMsg, successCount === total ? 'success' : 'warning', 6000);
 
   } catch (error) {
     console.error('Erro na exportação em lote:', error);

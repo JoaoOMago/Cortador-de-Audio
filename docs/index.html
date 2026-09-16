@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index-CHEAnC_A.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BlXY_LPk.css">
+    <script type="module" crossorigin src="./assets/index-CJ4QNfx2.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CqtCCfnj.css">
   </head>
   <body>
     <div class="app-container">
@@ -60,6 +60,15 @@
       <section class="list-toolbar hidden" id="list-toolbar">
         <div class="list-count">
           <span id="total-tracks-count">0 músicas carregadas</span>
+        </div>
+        <div class="toolbar-settings">
+          <label for="input-timeout-limit" class="timeout-label" title="Tempo máximo que o sistema aguardará por música antes de abortar com erro">
+            ⏱️ Limite por música:
+          </label>
+          <div class="timeout-input-group" title="Se um arquivo demorar mais que este tempo, ele será abortado com erro no log">
+            <input type="number" id="input-timeout-limit" value="2" min="0.5" max="30" step="0.5" />
+            <span>min</span>
+          </div>
         </div>
       </section>
 

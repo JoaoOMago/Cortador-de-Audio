@@ -2,7 +2,7 @@ import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/plugins/regions';
 import { readAudioMetadata } from './metadataReader.js';
 import { downloadSingleFile } from './zipExporter.js';
-import { processAudioTrack, getFFmpeg } from './audioProcessor.js';
+import { processAudioTrack, getFFmpeg, DEFAULT_FILE_TIMEOUT_SECONDS } from './audioProcessor.js';
 import { showToast } from './toast.js';
 
 /**
@@ -16,6 +16,21 @@ export function formatTime(totalSeconds) {
   const secs = Math.floor(totalSeconds % 60);
   const centis = Math.floor((totalSeconds % 1) * 100);
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(centis).padStart(2, '0')}`;
+}
+
+/**
+ * Helper to get currently configured timeout in seconds from the UI input.
+ * @returns {number} Timeout in seconds
+ */
+function getCurrentTimeoutSeconds() {
+  const timeoutInput = document.getElementById('input-timeout-limit');
+  if (timeoutInput && timeoutInput.value) {
+    const mins = parseFloat(timeoutInput.value);
+    if (!isNaN(mins) && mins > 0) {
+      return Math.round(mins * 60);
+    }
+  }
+  return DEFAULT_FILE_TIMEOUT_SECONDS;
 }
 
 /**
@@ -87,6 +102,20 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
           <span>Gerando forma de onda...</span>
         </div>
         <div class="waveform-container"></div>
+        <div class="waveform-markers-overlay">
+          <div class="waveform-marker marker-cursor hidden">
+            <div class="marker-flag">📍 <span class="marker-cursor-text">00:00.00</span></div>
+            <div class="marker-bar"></div>
+          </div>
+          <div class="waveform-marker marker-start hidden">
+            <div class="marker-flag">✂ Início: <span class="marker-start-text">00:00.00</span></div>
+            <div class="marker-bar"></div>
+          </div>
+          <div class="waveform-marker marker-end hidden">
+            <div class="marker-flag">✂ Fim: <span class="marker-end-text">00:00.00</span></div>
+            <div class="marker-bar"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Player Controls Bar -->
@@ -151,31 +180,31 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       </div>
     </div>
 
-    <!-- Metadata & Cover Art Section -->
+    <!-- Metadata & Cover Editor -->
     <div class="meta-section">
+      <!-- Cover Image Preview & Uploader -->
       <div class="cover-wrapper">
         <div class="cover-preview-container">
           <div class="cover-placeholder">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <span>Sem Capa</span>
+            <span>Sem capa</span>
           </div>
-          <img class="cover-img hidden" alt="Capa do álbum" />
+          <img class="cover-img hidden" alt="Capa do Álbum" />
         </div>
         <div class="cover-actions">
           <label class="btn btn-secondary btn-upload-cover">
-            🖼️ Trocar capa
-            <input type="file" class="cover-file-input" accept="image/*" style="display: none;" />
+            Trocar capa
+            <input type="file" class="cover-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" />
           </label>
-          <button type="button" class="btn btn-danger-soft btn-remove-cover hidden">
-            Remover capa
-          </button>
+          <button type="button" class="btn btn-danger-soft btn-remove-cover hidden">Remover</button>
         </div>
       </div>
 
+      <!-- ID3 Tags Inputs -->
       <div class="metadata-form">
         <div class="form-row">
           <div class="form-group flex-2">
@@ -209,13 +238,13 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       <div class="card-footer-actions">
         <span class="process-msg"></span>
         <div class="card-footer-buttons">
-          <button type="button" class="btn btn-primary btn-download-single" title="Processar e baixar esta faixa individualmente">
-            ⬇ Baixar esta faixa (.mp3)
+          <button type="button" class="btn btn-primary btn-download-single" title="Processar e baixar esta música individualmente">
+            ⬇ Baixar esta música (.mp3)
           </button>
-          <button type="button" class="btn btn-success btn-download-track hidden">
-            ⬇ Baixar resultado (.mp3)
+          <button type="button" class="btn btn-success btn-download-track hidden" title="Baixar novamente o áudio já processado">
+            ⬇ Baixar novamente (.mp3)
           </button>
-          <button type="button" class="btn btn-danger-soft btn-view-log hidden" title="Ver detalhes do erro">
+          <button type="button" class="btn btn-danger-soft btn-view-log hidden" title="Ver detalhes e logs do erro">
             📋 Ver log de erro
           </button>
         </div>
@@ -257,6 +286,27 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   const elBtnDownloadSingle = cardElement.querySelector('.btn-download-single');
   const elBtnViewLog = cardElement.querySelector('.btn-view-log');
 
+  // Markers
+  const elMarkerCursor = cardElement.querySelector('.marker-cursor');
+  const elMarkerCursorText = cardElement.querySelector('.marker-cursor-text');
+  const elMarkerStart = cardElement.querySelector('.marker-start');
+  const elMarkerStartText = cardElement.querySelector('.marker-start-text');
+  const elMarkerEnd = cardElement.querySelector('.marker-end');
+  const elMarkerEndText = cardElement.querySelector('.marker-end-text');
+
+  function updateMarker(elMarker, elText, time) {
+    if (!elMarker || state.duration <= 0 || time === null || time === undefined) {
+      if (elMarker) elMarker.classList.add('hidden');
+      return;
+    }
+    const pct = Math.max(0, Math.min(100, (time / state.duration) * 100));
+    elMarker.style.left = `${pct}%`;
+    if (elText) {
+      elText.textContent = formatTime(time);
+    }
+    elMarker.classList.remove('hidden');
+  }
+
   // Update Status helper
   function setStatus(status, text) {
     state.status = status;
@@ -268,9 +318,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
   // Update Cut Regions on WaveSurfer
   let wsRegions = null;
-  let regionStartCut = null;
-  let regionEndCut = null;
-  let regionKept = null;
 
   function updateCutDisplay() {
     const hasStartCut = state.cutStart > 0.02;
@@ -297,18 +344,20 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
     if (!wsRegions) return;
 
-    // Clear previous regions
     wsRegions.clearRegions();
 
     // Visual region for discarded start
     if (hasStartCut) {
+      const label = document.createElement('span');
+      label.className = 'region-label';
+      label.textContent = '✂️ Vinheta Início';
       wsRegions.addRegion({
         start: 0,
         end: state.cutStart,
         color: 'rgba(239, 68, 68, 0.35)',
         drag: false,
         resize: false,
-        content: document.createTextNode('✂️ Vinheta Início (Descarte)')
+        content: label
       });
     }
 
@@ -323,14 +372,30 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
     // Visual region for discarded end
     if (hasEndCut) {
+      const label = document.createElement('span');
+      label.className = 'region-label';
+      label.textContent = '✂️ Vinheta Fim';
       wsRegions.addRegion({
         start: state.cutEnd,
         end: state.duration,
         color: 'rgba(239, 68, 68, 0.35)',
         drag: false,
         resize: false,
-        content: document.createTextNode('✂️ Vinheta Fim (Descarte)')
+        content: label
       });
+    }
+
+    // Update markers
+    if (hasStartCut) {
+      updateMarker(elMarkerStart, elMarkerStartText, state.cutStart);
+    } else if (elMarkerStart) {
+      elMarkerStart.classList.add('hidden');
+    }
+
+    if (hasEndCut) {
+      updateMarker(elMarkerEnd, elMarkerEndText, state.cutEnd);
+    } else if (elMarkerEnd) {
+      elMarkerEnd.classList.add('hidden');
     }
   }
 
@@ -382,6 +447,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     elBtnCutEnd.disabled = false;
 
     updateCutDisplay();
+    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
     if (state.status === 'loading') {
       setStatus('clean', 'Não editado');
     }
@@ -392,6 +458,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     state.cursorPosition = Math.max(0, Math.min(newTime, state.duration));
     elCursorTimeVal.textContent = formatTime(state.cursorPosition);
     elCurrentTime.textContent = formatTime(state.cursorPosition);
+    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
   });
 
   // Time update during playback
@@ -443,6 +510,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     ws.setTime(newPos);
     state.cursorPosition = newPos;
     elCursorTimeVal.textContent = formatTime(newPos);
+    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
   });
 
   elBtnStepForward.addEventListener('click', () => {
@@ -450,6 +518,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     ws.setTime(newPos);
     state.cursorPosition = newPos;
     elCursorTimeVal.textContent = formatTime(newPos);
+    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
   });
 
   // Playback Speed Buttons
@@ -518,15 +587,13 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     if (state.status === 'clean') setStatus('modified', 'Metadados alterados');
   });
 
-  // Metadata input handlers
+  // Metadata Input Listeners
   function onMetaInput() {
-    state.title = elInputTitle.value;
-    state.artist = elInputArtist.value;
-    state.album = elInputAlbum.value;
-    state.year = elInputYear.value;
-    if (state.status === 'clean') {
-      setStatus('modified', 'Metadados alterados');
-    }
+    state.title = elInputTitle.value.trim() || state.originalName.replace(/\.[^/.]+$/, '');
+    state.artist = elInputArtist.value.trim();
+    state.album = elInputAlbum.value.trim();
+    state.year = elInputYear.value.trim();
+    if (state.status === 'clean') setStatus('modified', 'Metadados alterados');
   }
 
   elInputTitle.addEventListener('input', onMetaInput);
@@ -538,6 +605,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   elBtnDownloadTrack.addEventListener('click', () => {
     if (state.processedBlob && state.processedFilename) {
       downloadSingleFile(state.processedBlob, state.processedFilename);
+      showToast(`Baixando "${state.processedFilename}"...`, 'success');
     }
   });
 
@@ -552,7 +620,8 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     elProcessMsg.textContent = 'Iniciando processamento individual...';
     elBtnDownloadTrack.classList.add('hidden');
     elBtnViewLog.classList.add('hidden');
-    state.errorLog = [];
+
+    const timeoutSec = getCurrentTimeoutSeconds();
 
     try {
       // Warm up FFmpeg
@@ -574,6 +643,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         album: state.album,
         year: state.year,
         coverBlob: state.coverBlob,
+        timeoutSeconds: timeoutSec,
         onProgress: (ratio) => {
           elProgressBarFill.style.width = `${Math.round(ratio * 100)}%`;
           elProcessMsg.textContent = `Convertendo áudio... ${Math.round(ratio * 100)}%`;
@@ -594,11 +664,17 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     } catch (err) {
       console.error(`Erro ao processar faixa individual:`, err);
       const timestamp = new Date().toLocaleString('pt-BR');
+      const cutInfo = (state.cutStart > 0 || state.cutEnd < state.duration)
+        ? `${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
+        : 'Faixa completa';
+
       state.errorLog.push({
         timestamp,
         message: err.message || 'Erro desconhecido',
+        isTimeout: Boolean(err.isTimeout),
         stack: err.stack || '',
-        context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
+        context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${cutInfo} | Limite Timeout: ${timeoutSec}s`,
+        ffmpegLogs: err.ffmpegLogs || []
       });
 
       setStatus('error', 'Erro');
@@ -610,7 +686,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     } finally {
       state.isProcessingSingle = false;
       elBtnDownloadSingle.disabled = false;
-      elBtnDownloadSingle.textContent = '⬇ Baixar esta faixa (.mp3)';
+      elBtnDownloadSingle.textContent = '⬇ Baixar esta música (.mp3)';
     }
   });
 
@@ -625,77 +701,96 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     onRemove(index);
   });
 
-  // Destroy / Cleanup helper
+  // Read Audio Metadata from File
+  try {
+    const meta = await readAudioMetadata(file);
+    if (state.isDestroyed) return;
+
+    if (meta.title) {
+      state.title = meta.title;
+      elInputTitle.value = meta.title;
+    } else {
+      elInputTitle.value = state.title;
+    }
+
+    if (meta.artist) {
+      state.artist = meta.artist;
+      elInputArtist.value = meta.artist;
+    }
+
+    if (meta.album) {
+      state.album = meta.album;
+      elInputAlbum.value = meta.album;
+    }
+
+    if (meta.year) {
+      state.year = String(meta.year);
+      elInputYear.value = String(meta.year);
+    }
+
+    if (meta.coverBlob && meta.coverUrl) {
+      state.coverBlob = meta.coverBlob;
+      state.coverUrl = meta.coverUrl;
+      updateCoverUI(state.coverBlob, state.coverUrl);
+    }
+  } catch (err) {
+    console.warn(`[trackCard] Falha ao extrair metadados para "${file.name}":`, err);
+  }
+
+  // Cleanup helper
   function destroy() {
     state.isDestroyed = true;
     try {
       ws.destroy();
     } catch (_) {}
-    URL.revokeObjectURL(audioUrl);
-    if (state.coverUrl) {
-      URL.revokeObjectURL(state.coverUrl);
-    }
-    if (cardElement.parentNode) {
-      cardElement.parentNode.removeChild(cardElement);
-    }
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    if (state.coverUrl) URL.revokeObjectURL(state.coverUrl);
+    cardElement.remove();
   }
 
-  // Asynchronously extract original metadata and cover image
-  readAudioMetadata(file).then((meta) => {
-    if (state.isDestroyed) return;
-
-    state.title = meta.title || file.name.replace(/\.[^/.]+$/, '');
-    state.artist = meta.artist || '';
-    state.album = meta.album || '';
-    state.year = meta.year || '';
-    state.coverBlob = meta.coverBlob;
-    state.coverUrl = meta.coverUrl;
-
-    elInputTitle.value = state.title;
-    elInputArtist.value = state.artist;
-    elInputAlbum.value = state.album;
-    elInputYear.value = state.year;
-
-    updateCoverUI(state.coverBlob, state.coverUrl);
-  });
-
-  // Public Controller interface
   return {
     element: cardElement,
     state,
     destroy,
-
-    setProcessingState(isProcessing, progressRatio = 0, message = '') {
+    setProcessingState: (isProcessing, progress = 0, msg = '') => {
       if (isProcessing) {
         setStatus('processing', 'Processando...');
         elProgressBarWrapper.classList.remove('hidden');
-        elProgressBarFill.style.width = `${Math.round(progressRatio * 100)}%`;
-        elProcessMsg.textContent = message || `Convertendo áudio... ${Math.round(progressRatio * 100)}%`;
-        elBtnDownloadTrack.classList.add('hidden');
+        elProgressBarFill.style.width = `${Math.round(progress * 100)}%`;
+        if (msg) elProcessMsg.textContent = msg;
+        elBtnDownloadSingle.disabled = true;
       } else {
         elProgressBarWrapper.classList.add('hidden');
+        elBtnDownloadSingle.disabled = false;
       }
     },
-
-    setReadyState(blob, filename) {
+    setReadyState: (blob, filename) => {
       state.processedBlob = blob;
       state.processedFilename = filename;
       setStatus('ready', 'Pronto ✓');
       elProgressBarWrapper.classList.add('hidden');
       elProcessMsg.textContent = `Salvo como: ${filename}`;
       elBtnDownloadTrack.classList.remove('hidden');
+      elBtnDownloadSingle.disabled = false;
     },
-
-    setErrorState(errMsg) {
+    setErrorState: (errMsg, extraErrorData = {}) => {
       setStatus('error', 'Erro');
       elProgressBarWrapper.classList.add('hidden');
       elProcessMsg.textContent = `Erro: ${errMsg}`;
+      elBtnDownloadSingle.disabled = false;
+      
       const timestamp = new Date().toLocaleString('pt-BR');
+      const cutInfo = (state.cutStart > 0 || state.cutEnd < state.duration)
+        ? `${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
+        : 'Faixa completa';
+
       state.errorLog.push({
         timestamp,
         message: errMsg || 'Erro desconhecido',
-        stack: '',
-        context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
+        isTimeout: Boolean(extraErrorData.isTimeout),
+        stack: extraErrorData.stack || '',
+        context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${cutInfo}`,
+        ffmpegLogs: extraErrorData.ffmpegLogs || []
       });
       elBtnViewLog.classList.remove('hidden');
     }
@@ -703,7 +798,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 }
 
 /**
- * Opens a modal overlay showing the error log for a track.
+ * Opens a modal overlay showing the comprehensive error log for a track.
  * @param {Object} state - Track state with errorLog array
  */
 function showErrorLogModal(state) {
@@ -717,19 +812,27 @@ function showErrorLogModal(state) {
 
   const logEntries = state.errorLog.length > 0
     ? state.errorLog.map((entry, i) => {
-        return `━━━ Erro #${i + 1} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        const ffmpegOutput = entry.ffmpegLogs && entry.ffmpegLogs.length > 0
+          ? `\n\n📺 Últimos Logs do FFmpeg.wasm (${entry.ffmpegLogs.length} linhas):\n${entry.ffmpegLogs.slice(-40).join('\n')}`
+          : '';
+
+        return `━━━ Ocorrência #${i + 1} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🕐 Data/Hora: ${entry.timestamp}
 📄 Contexto:  ${entry.context}
 ❌ Mensagem:  ${entry.message}
-${entry.stack ? `\n📋 Stack Trace:\n${entry.stack}` : ''}`;
-      }).join('\n\n')
-    : 'Nenhum erro registrado.';
+${entry.isTimeout ? '⏱️ Causa: Tempo limite de processamento atingido.' : ''}
+${entry.stack ? `\n📋 Stack Trace:\n${entry.stack}` : ''}${ffmpegOutput}`;
+      }).join('\n\n' + '─'.repeat(52) + '\n\n')
+    : 'Nenhum erro registrado nesta faixa.';
 
   const fullLog = `════════════════════════════════════════════════
-  LOG DE ERROS — ${state.title || state.originalName}
+  RELATÓRIO DE ERRO & DIAGNÓSTICO — vox acies
 ════════════════════════════════════════════════
+Música:           ${state.title || state.originalName}
 Arquivo original: ${state.originalName}
-Total de erros: ${state.errorLog.length}
+Duração total:    ${formatTime(state.duration)}
+Status atual:     ${state.statusText} (${state.status})
+Total de falhas:  ${state.errorLog.length}
 
 ${logEntries}
 `;
@@ -737,9 +840,12 @@ ${logEntries}
   overlay.innerHTML = `
     <div class="error-log-modal-content">
       <div class="error-log-header">
-        <h3>📋 Log de Erros — ${state.title || state.originalName}</h3>
+        <div class="error-log-title-group">
+          <h3>📋 Relatório de Erro</h3>
+          <span class="error-log-subtitle">${state.title || state.originalName}</span>
+        </div>
         <div class="error-log-header-actions">
-          <button type="button" class="btn btn-secondary btn-copy-log" title="Copiar log para a área de transferência">
+          <button type="button" class="btn btn-secondary btn-copy-log" title="Copiar log completo para a área de transferência">
             📋 Copiar log
           </button>
           <button type="button" class="btn btn-icon btn-close-log" title="Fechar">
@@ -752,7 +858,7 @@ ${logEntries}
       </div>
       <pre class="error-log-body">${fullLog.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
       <div class="error-log-footer">
-        <span class="error-log-count">${state.errorLog.length} erro(s) registrado(s)</span>
+        <span class="error-log-count">${state.errorLog.length} ocorrência(s) registrada(s)</span>
         <button type="button" class="btn btn-secondary btn-close-log-footer">Fechar</button>
       </div>
     </div>
