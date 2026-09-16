@@ -29,6 +29,48 @@ export function getRecentFFmpegLogs() {
 }
 
 /**
+ * Optimizes an album cover image for ID3 embedding:
+ * Resizes down to max 1000x1000 and encodes to a lightweight, clean JPEG Blob,
+ * preventing WebAssembly out-of-bounds memory errors on huge pictures.
+ * @param {Blob|File} blob
+ * @returns {Promise<Blob>}
+ */
+async function optimizeCoverForFFmpeg(blob) {
+  if (!blob) return null;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const maxDim = 1000;
+    let width = bitmap.width;
+    let height = bitmap.height;
+
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+
+    const jpegBlob = await new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85);
+    });
+
+    return jpegBlob || blob;
+  } catch (e) {
+    console.warn('[optimizeCoverForFFmpeg] Usando blob original:', e);
+    return blob;
+  }
+}
+
+/**
  * Initializes and loads the singleton FFmpeg.wasm instance.
  * @param {Function} [onStatusUpdate] - Status callback
  * @returns {Promise<FFmpeg>}
@@ -211,7 +253,8 @@ export async function processAudioTrack({
     let hasCover = Boolean(coverBlob);
     if (hasCover) {
       try {
-        const coverData = await fetchFile(coverBlob);
+        const optimizedCover = await optimizeCoverForFFmpeg(coverBlob);
+        const coverData = await fetchFile(optimizedCover || coverBlob);
         await ffmpeg.writeFile(coverFilename, coverData);
         filesToCleanup.push(coverFilename);
         args.push('-i', coverFilename);
@@ -290,10 +333,35 @@ export async function processAudioTrack({
   try {
     const result = await Promise.race([executionPromise, timeoutPromise]);
     return result;
-  } catch (err) {
-    if (!err.ffmpegLogs) {
-      err.ffmpegLogs = [...trackLogs];
+  } catch (rawErr) {
+    // Guarantee error is always an Error instance
+    let err;
+    if (rawErr instanceof Error) {
+      err = rawErr;
+    } else if (typeof rawErr === 'object' && rawErr !== null) {
+      err = new Error(rawErr.message || JSON.stringify(rawErr));
+      try { Object.assign(err, rawErr); } catch (_) {}
+    } else {
+      err = new Error(String(rawErr));
     }
+
+    // If WebAssembly linear memory was corrupted / out of bounds, reset singleton so next run starts clean
+    const errStr = String(err.message || '') + String(rawErr || '');
+    if (errStr.includes('memory access out of bounds') || errStr.includes('RuntimeError') || errStr.includes('abort')) {
+      console.warn('[audioProcessor] Instância do FFmpeg corrompida, reinicializando motor...');
+      try {
+        if (ffmpegInstance) ffmpegInstance.terminate?.();
+      } catch (_) {}
+      ffmpegInstance = null;
+      loadPromise = null;
+    }
+
+    try {
+      if (!err.ffmpegLogs) {
+        err.ffmpegLogs = [...trackLogs];
+      }
+    } catch (_) {}
+
     throw err;
   } finally {
     if (timeoutTimer) {
@@ -301,8 +369,10 @@ export async function processAudioTrack({
     }
 
     // Detach listeners
-    ffmpeg.off('log', logHandler);
-    ffmpeg.off('progress', progressHandler);
+    try {
+      ffmpeg.off('log', logHandler);
+      ffmpeg.off('progress', progressHandler);
+    } catch (_) {}
 
     // Cleanup virtual memory
     for (const virtualFile of filesToCleanup) {

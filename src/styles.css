@@ -407,70 +407,38 @@ body {
   pointer-events: none;
   transform: translateX(-50%);
   z-index: 6;
-  transition: left 0.05s ease-out;
+  transition: left 0.04s ease-out;
 }
 
+/* Thin, sleek vertical marker hairline */
 .waveform-marker .marker-bar {
-  width: 3px;
+  width: 1.5px;
   height: 100%;
-  border-radius: 2px;
+  border-radius: 1px;
   margin: 0 auto;
 }
 
+/* Hide time badges over the waveform to avoid obstructing waveform bars */
 .waveform-marker .marker-flag {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 4px;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  display: none !important;
 }
 
 /* 1. Selection / Cursor Vertical Bar (Where the user clicked) */
 .marker-cursor .marker-bar {
   background: #38bdf8;
-  box-shadow: 0 0 10px #38bdf8, 0 0 3px #fff;
-}
-
-.marker-cursor .marker-flag {
-  top: 4px;
-  background: #0284c7;
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 3px rgba(56, 189, 248, 0.7);
 }
 
 /* 2. Start Cut Vertical Bar (Início Cortado) */
 .marker-start .marker-bar {
   background: #10b981;
-  box-shadow: 0 0 10px #10b981, 0 0 2px #fff;
-}
-
-.marker-start .marker-flag {
-  bottom: 4px;
-  background: #059669;
-  color: #fff;
-  border: 1px solid rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 3px rgba(16, 185, 129, 0.7);
 }
 
 /* 3. End Cut Vertical Bar (Fim Cortado) */
 .marker-end .marker-bar {
   background: #ef4444;
-  box-shadow: 0 0 10px #ef4444, 0 0 2px #fff;
-}
-
-.marker-end .marker-flag {
-  bottom: 4px;
-  background: #dc2626;
-  color: #fff;
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 3px rgba(239, 68, 68, 0.7);
 }
 
 /* Region Labels on Waveform */

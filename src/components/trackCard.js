@@ -34,6 +34,35 @@ function getCurrentTimeoutSeconds() {
 }
 
 /**
+ * Accurately detects the true, exact PCM decoded duration of an audio file,
+ * resolving inaccurate VBR/MP3 header estimates.
+ * @param {File|Blob} file
+ * @returns {Promise<number|null>}
+ */
+async function detectTrueAudioDuration(file) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtxClass) {
+      const audioCtx = new AudioCtxClass();
+      try {
+        const decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+        if (decoded && decoded.duration > 0 && isFinite(decoded.duration)) {
+          return decoded.duration;
+        }
+      } finally {
+        if (audioCtx.state !== 'closed') {
+          audioCtx.close().catch(() => {});
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[detectTrueAudioDuration] Fallback para duração padrão:', err);
+  }
+  return null;
+}
+
+/**
  * Creates a track card controller and DOM node.
  * @param {Object} options
  * @param {File} options.file
@@ -104,15 +133,12 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         <div class="waveform-container"></div>
         <div class="waveform-markers-overlay">
           <div class="waveform-marker marker-cursor hidden">
-            <div class="marker-flag">📍 <span class="marker-cursor-text">00:00.00</span></div>
             <div class="marker-bar"></div>
           </div>
           <div class="waveform-marker marker-start hidden">
-            <div class="marker-flag">✂ Início: <span class="marker-start-text">00:00.00</span></div>
             <div class="marker-bar"></div>
           </div>
           <div class="waveform-marker marker-end hidden">
-            <div class="marker-flag">✂ Fim: <span class="marker-end-text">00:00.00</span></div>
             <div class="marker-bar"></div>
           </div>
         </div>
@@ -286,24 +312,18 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   const elBtnDownloadSingle = cardElement.querySelector('.btn-download-single');
   const elBtnViewLog = cardElement.querySelector('.btn-view-log');
 
-  // Markers
+  // Markers (Sleek vertical lines)
   const elMarkerCursor = cardElement.querySelector('.marker-cursor');
-  const elMarkerCursorText = cardElement.querySelector('.marker-cursor-text');
   const elMarkerStart = cardElement.querySelector('.marker-start');
-  const elMarkerStartText = cardElement.querySelector('.marker-start-text');
   const elMarkerEnd = cardElement.querySelector('.marker-end');
-  const elMarkerEndText = cardElement.querySelector('.marker-end-text');
 
-  function updateMarker(elMarker, elText, time) {
+  function updateMarker(elMarker, time) {
     if (!elMarker || state.duration <= 0 || time === null || time === undefined) {
       if (elMarker) elMarker.classList.add('hidden');
       return;
     }
     const pct = Math.max(0, Math.min(100, (time / state.duration) * 100));
     elMarker.style.left = `${pct}%`;
-    if (elText) {
-      elText.textContent = formatTime(time);
-    }
     elMarker.classList.remove('hidden');
   }
 
@@ -387,13 +407,13 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
     // Update markers
     if (hasStartCut) {
-      updateMarker(elMarkerStart, elMarkerStartText, state.cutStart);
+      updateMarker(elMarkerStart, state.cutStart);
     } else if (elMarkerStart) {
       elMarkerStart.classList.add('hidden');
     }
 
     if (hasEndCut) {
-      updateMarker(elMarkerEnd, elMarkerEndText, state.cutEnd);
+      updateMarker(elMarkerEnd, state.cutEnd);
     } else if (elMarkerEnd) {
       elMarkerEnd.classList.add('hidden');
     }
@@ -414,13 +434,13 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     }
   }
 
-  // Initialize WaveSurfer
+  // Initialize WaveSurfer with sleek hairline playhead
   const ws = WaveSurfer.create({
     container: elWaveformContainer,
     waveColor: '#6366f1',
     progressColor: '#a855f7',
     cursorColor: '#f43f5e',
-    cursorWidth: 2,
+    cursorWidth: 1.5,
     barWidth: 2,
     barGap: 1,
     barRadius: 2,
@@ -430,15 +450,53 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
   wsRegions = ws.registerPlugin(RegionsPlugin.create());
 
+  /**
+   * Synchronizes the real, accurate PCM decoded duration across the card state and UI.
+   * Prevents premature endings caused by inaccurate VBR/MP3 container headers.
+   * @param {number} realDuration
+   */
+  function syncAccurateDuration(realDuration) {
+    if (!realDuration || !isFinite(realDuration) || realDuration <= 0) return;
+    
+    const prevDuration = state.duration;
+    state.duration = realDuration;
+    
+    if (state.cutEnd <= 0 || state.cutEnd >= (prevDuration - 0.05)) {
+      state.cutEnd = realDuration;
+    } else {
+      state.cutEnd = Math.min(state.cutEnd, realDuration);
+    }
+    
+    state.cutStart = Math.min(state.cutStart, Math.max(0, realDuration - 0.05));
+    
+    elTotalDuration.textContent = formatTime(state.duration);
+    updateCutDisplay();
+    updateMarker(elMarkerCursor, state.cursorPosition);
+  }
+
+  // 1. Detect true duration directly via PCM decode in parallel
+  detectTrueAudioDuration(file).then((trueDuration) => {
+    if (trueDuration && !state.isDestroyed) {
+      syncAccurateDuration(trueDuration);
+    }
+  });
+
+  // 2. Also hook into WaveSurfer decode event for exact decoded PCM duration
+  ws.on('decode', (decodedDuration) => {
+    if (decodedDuration > 0 && isFinite(decodedDuration) && !state.isDestroyed) {
+      syncAccurateDuration(decodedDuration);
+    }
+  });
+
   // WaveSurfer ready event
   ws.on('ready', () => {
     if (state.isDestroyed) return;
     elWaveformLoading.classList.add('hidden');
-    state.duration = ws.getDuration();
-    state.cutEnd = state.duration;
-    state.cutStart = 0;
+    
+    const decoded = ws.getDecodedData();
+    const accurateDuration = (decoded && decoded.duration > 0) ? decoded.duration : ws.getDuration();
+    syncAccurateDuration(accurateDuration);
 
-    elTotalDuration.textContent = formatTime(state.duration);
     elBtnPlay.disabled = false;
     elBtnPreviewTrim.disabled = false;
     elBtnStepBack.disabled = false;
@@ -446,8 +504,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     elBtnCutStart.disabled = false;
     elBtnCutEnd.disabled = false;
 
-    updateCutDisplay();
-    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
     if (state.status === 'loading') {
       setStatus('clean', 'Não editado');
     }
@@ -458,7 +514,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     state.cursorPosition = Math.max(0, Math.min(newTime, state.duration));
     elCursorTimeVal.textContent = formatTime(state.cursorPosition);
     elCurrentTime.textContent = formatTime(state.cursorPosition);
-    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
+    updateMarker(elMarkerCursor, state.cursorPosition);
   });
 
   // Time update during playback
@@ -510,7 +566,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     ws.setTime(newPos);
     state.cursorPosition = newPos;
     elCursorTimeVal.textContent = formatTime(newPos);
-    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
+    updateMarker(elMarkerCursor, state.cursorPosition);
   });
 
   elBtnStepForward.addEventListener('click', () => {
@@ -518,7 +574,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     ws.setTime(newPos);
     state.cursorPosition = newPos;
     elCursorTimeVal.textContent = formatTime(newPos);
-    updateMarker(elMarkerCursor, elMarkerCursorText, state.cursorPosition);
+    updateMarker(elMarkerCursor, state.cursorPosition);
   });
 
   // Playback Speed Buttons
@@ -668,18 +724,23 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         ? `${formatTime(state.cutStart)} → ${formatTime(state.cutEnd)}`
         : 'Faixa completa';
 
+      const errMsg = (err && typeof err === 'object') ? (err.message || 'Erro desconhecido') : String(err);
+      const isTimeout = Boolean(err && err.isTimeout);
+      const errStack = (err && typeof err === 'object') ? (err.stack || '') : '';
+      const errLogs = (err && typeof err === 'object' && Array.isArray(err.ffmpegLogs)) ? err.ffmpegLogs : [];
+
       state.errorLog.push({
         timestamp,
-        message: err.message || 'Erro desconhecido',
-        isTimeout: Boolean(err.isTimeout),
-        stack: err.stack || '',
+        message: errMsg,
+        isTimeout,
+        stack: errStack,
         context: `Arquivo: ${state.originalName} | Título: ${state.title} | Corte: ${cutInfo} | Limite Timeout: ${timeoutSec}s`,
-        ffmpegLogs: err.ffmpegLogs || []
+        ffmpegLogs: errLogs
       });
 
       setStatus('error', 'Erro');
       elProgressBarWrapper.classList.add('hidden');
-      elProcessMsg.textContent = `Erro: ${err.message || 'Falha no processamento'}`;
+      elProcessMsg.textContent = `Erro: ${errMsg}`;
       elBtnViewLog.classList.remove('hidden');
       showToast(`Erro ao processar "${state.title}". Clique em "Ver log" para detalhes.`, 'error', 5000);
 
