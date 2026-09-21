@@ -3,6 +3,7 @@ import { createTrackCard } from './components/trackCard.js';
 import { processAudioTrack, getFFmpeg } from './components/audioProcessor.js';
 import { exportToZip } from './components/zipExporter.js';
 import { showToast } from './components/toast.js';
+import { ALL_METADATA_FIELDS, getEnabledFieldKeys, saveEnabledFieldKeys } from './services/metadataConfigService.js';
 
 // Re-export for backwards compatibility
 export { showToast };
@@ -25,6 +26,15 @@ const btnClearAll = document.getElementById('btn-clear-all');
 const globalProgressContainer = document.getElementById('global-progress-container');
 const globalProgressFill = document.getElementById('global-progress-fill');
 const globalProgressText = document.getElementById('global-progress-text');
+
+// Metadata Modal Elements
+const btnOpenConfigHeader = document.getElementById('btn-open-metadata-config-header');
+const btnOpenConfigToolbar = document.getElementById('btn-open-metadata-config-toolbar');
+const modalMetadataConfig = document.getElementById('modal-metadata-config');
+const btnCloseMetadataModal = document.getElementById('btn-close-metadata-modal');
+const btnSaveMetadataConfig = document.getElementById('btn-save-metadata-config');
+const checkboxToggleAll = document.getElementById('checkbox-toggle-all-metadata');
+const metadataFieldsGrid = document.getElementById('metadata-fields-grid');
 
 /**
  * Updates UI toolbar and sticky bar visibility and count metrics.
@@ -198,6 +208,18 @@ btnDownloadAll.addEventListener('click', async () => {
           artist: state.artist,
           album: state.album,
           year: state.year,
+          genre: state.genre,
+          bpm: state.bpm,
+          subtitle: state.subtitle,
+          rating: state.rating,
+          composer: state.composer,
+          trackNumber: state.trackNumber,
+          discNumber: state.discNumber,
+          albumArtist: state.albumArtist,
+          copyright: state.copyright,
+          lyrics: state.lyrics,
+          comment: state.comment,
+          extraMetadata: state.extraMetadata,
           coverBlob: state.coverBlob,
           timeoutSeconds: timeoutSec,
           onProgress: (ratio) => {
@@ -250,6 +272,102 @@ btnDownloadAll.addEventListener('click', async () => {
         globalProgressContainer.classList.add('hidden');
       }
     }, 4000);
+  }
+});
+
+// ==========================================
+// Metadata Configuration Modal Controller
+// ==========================================
+function renderMetadataConfigModal() {
+  if (!metadataFieldsGrid) return;
+  const enabledKeys = getEnabledFieldKeys();
+
+  metadataFieldsGrid.innerHTML = ALL_METADATA_FIELDS.map((f) => {
+    const isChecked = enabledKeys.has(f.key);
+    return `
+      <div class="metadata-field-card ${isChecked ? 'active' : ''}">
+        <label class="checkbox-label">
+          <input type="checkbox" class="field-checkbox" data-key="${f.key}" ${isChecked ? 'checked' : ''} />
+          <span class="checkbox-custom"></span>
+          <div class="field-info">
+            <span class="field-title">${f.label}</span>
+            <span class="field-tag">ID3: ${f.id3Tag}</span>
+          </div>
+        </label>
+      </div>
+    `;
+  }).join('');
+
+  updateSelectAllCheckboxState();
+
+  metadataFieldsGrid.querySelectorAll('.field-checkbox').forEach((chk) => {
+    chk.addEventListener('change', (e) => {
+      const card = e.target.closest('.metadata-field-card');
+      if (card) {
+        card.classList.toggle('active', e.target.checked);
+      }
+      updateSelectAllCheckboxState();
+    });
+  });
+}
+
+function updateSelectAllCheckboxState() {
+  if (!checkboxToggleAll || !metadataFieldsGrid) return;
+  const checkboxes = Array.from(metadataFieldsGrid.querySelectorAll('.field-checkbox'));
+  const allChecked = checkboxes.length > 0 && checkboxes.every(c => c.checked);
+  const someChecked = checkboxes.some(c => c.checked);
+  checkboxToggleAll.checked = allChecked;
+  checkboxToggleAll.indeterminate = someChecked && !allChecked;
+}
+
+function openMetadataModal() {
+  renderMetadataConfigModal();
+  modalMetadataConfig.classList.remove('hidden');
+}
+
+function closeMetadataModal() {
+  modalMetadataConfig.classList.add('hidden');
+}
+
+function saveAndApplyMetadataConfig() {
+  if (!metadataFieldsGrid) return;
+  const checkboxes = Array.from(metadataFieldsGrid.querySelectorAll('.field-checkbox'));
+  const selectedKeys = checkboxes.filter(c => c.checked).map(c => c.getAttribute('data-key'));
+  saveEnabledFieldKeys(selectedKeys);
+  closeMetadataModal();
+  showToast('Campos de metadados atualizados para todas as músicas!', 'success', 3000);
+}
+
+if (btnOpenConfigHeader) btnOpenConfigHeader.addEventListener('click', openMetadataModal);
+if (btnOpenConfigToolbar) btnOpenConfigToolbar.addEventListener('click', openMetadataModal);
+if (btnCloseMetadataModal) btnCloseMetadataModal.addEventListener('click', closeMetadataModal);
+if (btnSaveMetadataConfig) btnSaveMetadataConfig.addEventListener('click', saveAndApplyMetadataConfig);
+
+if (modalMetadataConfig) {
+  modalMetadataConfig.addEventListener('click', (e) => {
+    if (e.target === modalMetadataConfig) {
+      closeMetadataModal();
+    }
+  });
+}
+
+if (checkboxToggleAll) {
+  checkboxToggleAll.addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    if (metadataFieldsGrid) {
+      metadataFieldsGrid.querySelectorAll('.field-checkbox').forEach((chk) => {
+        chk.checked = isChecked;
+        const card = chk.closest('.metadata-field-card');
+        if (card) card.classList.toggle('active', isChecked);
+      });
+    }
+  });
+}
+
+// Escape key to close modal
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modalMetadataConfig && !modalMetadataConfig.classList.contains('hidden')) {
+    closeMetadataModal();
   }
 });
 

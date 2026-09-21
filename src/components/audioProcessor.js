@@ -178,6 +178,18 @@ export async function processAudioTrack({
   artist = '',
   album = '',
   year = '',
+  genre = '',
+  bpm = '',
+  subtitle = '',
+  rating = '',
+  composer = '',
+  trackNumber = '',
+  discNumber = '',
+  albumArtist = '',
+  copyright = '',
+  lyrics = '',
+  comment = '',
+  extraMetadata = {},
   coverBlob = null,
   onProgress = () => {},
   timeoutSeconds = DEFAULT_FILE_TIMEOUT_SECONDS
@@ -260,7 +272,8 @@ export async function processAudioTrack({
         args.push('-i', coverFilename);
         args.push('-map', '0:a');
         args.push('-map', '1:0');
-        args.push('-c:v', 'mjpeg');
+        args.push('-c:v', 'copy');
+        args.push('-disposition:v:0', 'attached_pic');
         args.push('-id3v2_version', '3');
         args.push('-metadata:s:v', 'title=Album cover');
         args.push('-metadata:s:v', 'comment=Cover (front)');
@@ -285,6 +298,49 @@ export async function processAudioTrack({
     }
     if (year && year.trim()) {
       args.push('-metadata', `date=${year.trim()}`);
+    }
+    if (genre && genre.trim()) {
+      args.push('-metadata', `genre=${genre.trim()}`);
+    }
+    if (bpm && bpm.trim()) {
+      args.push('-metadata', `TBPM=${bpm.trim()}`);
+    }
+    if (subtitle && subtitle.trim()) {
+      args.push('-metadata', `subtitle=${subtitle.trim()}`);
+      args.push('-metadata', `TIT3=${subtitle.trim()}`);
+    }
+    if (rating && rating.trim()) {
+      args.push('-metadata', `rating=${rating.trim()}`);
+    }
+    if (composer && composer.trim()) {
+      args.push('-metadata', `composer=${composer.trim()}`);
+    }
+    if (trackNumber && trackNumber.trim()) {
+      args.push('-metadata', `track=${trackNumber.trim()}`);
+    }
+    if (discNumber && discNumber.trim()) {
+      args.push('-metadata', `disc=${discNumber.trim()}`);
+    }
+    if (albumArtist && albumArtist.trim()) {
+      args.push('-metadata', `album_artist=${albumArtist.trim()}`);
+      args.push('-metadata', `TPE2=${albumArtist.trim()}`);
+    }
+    if (copyright && copyright.trim()) {
+      args.push('-metadata', `copyright=${copyright.trim()}`);
+    }
+    if (lyrics && lyrics.trim()) {
+      args.push('-metadata', `lyrics=${lyrics.trim()}`);
+      args.push('-metadata', `USLT=${lyrics.trim()}`);
+    }
+    if (comment && comment.trim()) {
+      args.push('-metadata', `comment=${comment.trim()}`);
+    }
+    if (extraMetadata && typeof extraMetadata === 'object') {
+      for (const [k, v] of Object.entries(extraMetadata)) {
+        if (v && String(v).trim()) {
+          args.push('-metadata', `${k}=${String(v).trim()}`);
+        }
+      }
     }
 
     // High quality MP3 encoding for precise cuts & universal compatibility

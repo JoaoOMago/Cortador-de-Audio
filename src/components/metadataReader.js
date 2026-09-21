@@ -19,6 +19,17 @@ export async function readAudioMetadata(file) {
     artist: '',
     album: '',
     year: '',
+    genre: '',
+    bpm: '',
+    subtitle: '',
+    rating: '',
+    composer: '',
+    trackNumber: '',
+    discNumber: '',
+    albumArtist: '',
+    copyright: '',
+    lyrics: '',
+    comment: '',
     coverBlob: null,
     coverUrl: null,
     coverMime: null
@@ -35,6 +46,23 @@ export async function readAudioMetadata(file) {
     if (common.artist && common.artist.trim()) result.artist = common.artist.trim();
     if (common.album && common.album.trim()) result.album = common.album.trim();
     if (common.year) result.year = String(common.year);
+    if (common.genre && common.genre.length > 0) result.genre = common.genre.join(', ');
+    if (common.bpm) result.bpm = String(common.bpm);
+    if (common.composer && common.composer.length > 0) result.composer = common.composer.join(', ');
+    if (common.albumartist) result.albumArtist = common.albumartist.trim();
+    if (common.copyright) result.copyright = common.copyright.trim();
+    if (common.lyrics && common.lyrics.length > 0) {
+      result.lyrics = typeof common.lyrics[0] === 'string' ? common.lyrics[0] : (common.lyrics[0]?.text || '');
+    }
+    if (common.comment && common.comment.length > 0) {
+      result.comment = typeof common.comment[0] === 'string' ? common.comment[0] : (common.comment[0]?.text || '');
+    }
+    if (common.track && common.track.no) {
+      result.trackNumber = common.track.of ? `${common.track.no}/${common.track.of}` : String(common.track.no);
+    }
+    if (common.disk && common.disk.no) {
+      result.discNumber = common.disk.of ? `${common.disk.no}/${common.disk.of}` : String(common.disk.no);
+    }
 
     if (common.picture && common.picture.length > 0) {
       const pic = common.picture[0];
@@ -60,7 +88,11 @@ export async function readAudioMetadata(file) {
       if (!result.artist && tags.artist) result.artist = tags.artist.trim();
       if (!result.album && tags.album) result.album = tags.album.trim();
       if (!result.year && tags.year) result.year = String(tags.year);
+      if (!result.genre && tags.genre) result.genre = tags.genre.trim();
       if (result.title === baseName && tags.title) result.title = tags.title.trim();
+      if (tags.track && !result.trackNumber) result.trackNumber = String(tags.track);
+      if (tags.lyrics && !result.lyrics) result.lyrics = typeof tags.lyrics === 'string' ? tags.lyrics : tags.lyrics?.lyrics;
+      if (tags.comment && !result.comment) result.comment = typeof tags.comment === 'string' ? tags.comment : tags.comment?.text;
 
       if (tags.picture) {
         const { data, format } = tags.picture;

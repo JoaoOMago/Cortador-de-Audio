@@ -4,6 +4,8 @@ import { readAudioMetadata } from './metadataReader.js';
 import { downloadSingleFile } from './zipExporter.js';
 import { processAudioTrack, getFFmpeg, DEFAULT_FILE_TIMEOUT_SECONDS } from './audioProcessor.js';
 import { showToast } from './toast.js';
+import { getSuggestionsForField } from '../services/metadataSearchService.js';
+import { ALL_METADATA_FIELDS, getEnabledFieldKeys, subscribeToFieldChanges } from '../services/metadataConfigService.js';
 
 /**
  * Formats seconds into MM:SS.cs (minutes:seconds.hundredths)
@@ -16,6 +18,21 @@ export function formatTime(totalSeconds) {
   const secs = Math.floor(totalSeconds % 60);
   const centis = Math.floor((totalSeconds % 1) * 100);
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(centis).padStart(2, '0')}`;
+}
+
+/**
+ * Escapes HTML to prevent XSS.
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 /**
@@ -78,7 +95,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
   const audioUrl = URL.createObjectURL(file);
 
-  // Initial state
+  // Initial state with extended ID3 metadata
   const state = {
     file,
     originalName: file.name,
@@ -93,6 +110,18 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     artist: '',
     album: '',
     year: '',
+    genre: '',
+    bpm: '',
+    subtitle: '',
+    rating: '',
+    composer: '',
+    trackNumber: '',
+    discNumber: '',
+    albumArtist: '',
+    copyright: '',
+    lyrics: '',
+    comment: '',
+    extraMetadata: {},
     coverBlob: null,
     coverUrl: null,
     coverChanged: false,
@@ -123,7 +152,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       </div>
     </div>
 
-    <!-- Waveform & Playback Area -->
+    <!-- Waveform & Trimmer Section -->
     <div class="waveform-section">
       <div class="waveform-wrapper">
         <div class="waveform-loading-overlay">
@@ -131,17 +160,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
           <span>Gerando forma de onda...</span>
         </div>
         <div class="waveform-container"></div>
-        <div class="waveform-markers-overlay">
-          <div class="waveform-marker marker-cursor hidden">
-            <div class="marker-bar"></div>
-          </div>
-          <div class="waveform-marker marker-start hidden">
-            <div class="marker-bar"></div>
-          </div>
-          <div class="waveform-marker marker-end hidden">
-            <div class="marker-bar"></div>
-          </div>
-        </div>
       </div>
 
       <!-- Player Controls Bar -->
@@ -246,13 +264,28 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         <div class="form-row">
           <div class="form-group flex-2">
             <label>Álbum</label>
-            <input type="text" class="input-album" placeholder="Ex: Nome do Álbum" />
+            <div class="input-search-group" data-field="album">
+              <input type="text" class="input-album" placeholder="Ex: Nome do Álbum" />
+              <button type="button" class="btn-field-search" title="Buscar opções de Álbum na web">
+                <span class="search-icon">🔍</span>
+                <span class="search-spinner hidden">⏳</span>
+              </button>
+            </div>
           </div>
           <div class="form-group flex-1">
             <label>Ano</label>
-            <input type="text" class="input-year" placeholder="Ex: 2024" maxlength="4" />
+            <div class="input-search-group" data-field="year">
+              <input type="text" class="input-year" placeholder="Ex: 2024" maxlength="4" />
+              <button type="button" class="btn-field-search" title="Buscar ano de lançamento na web">
+                <span class="search-icon">🔍</span>
+                <span class="search-spinner hidden">⏳</span>
+              </button>
+            </div>
           </div>
         </div>
+
+        <!-- Dynamic Extra Metadata Fields Grid -->
+        <div class="extra-metadata-container"></div>
       </div>
     </div>
 
@@ -305,27 +338,13 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   const elInputArtist = cardElement.querySelector('.input-artist');
   const elInputAlbum = cardElement.querySelector('.input-album');
   const elInputYear = cardElement.querySelector('.input-year');
+  const elExtraContainer = cardElement.querySelector('.extra-metadata-container');
   const elProgressBarWrapper = cardElement.querySelector('.progress-bar-wrapper');
   const elProgressBarFill = cardElement.querySelector('.progress-bar-fill');
   const elProcessMsg = cardElement.querySelector('.process-msg');
   const elBtnDownloadTrack = cardElement.querySelector('.btn-download-track');
   const elBtnDownloadSingle = cardElement.querySelector('.btn-download-single');
   const elBtnViewLog = cardElement.querySelector('.btn-view-log');
-
-  // Markers (Sleek vertical lines)
-  const elMarkerCursor = cardElement.querySelector('.marker-cursor');
-  const elMarkerStart = cardElement.querySelector('.marker-start');
-  const elMarkerEnd = cardElement.querySelector('.marker-end');
-
-  function updateMarker(elMarker, time) {
-    if (!elMarker || state.duration <= 0 || time === null || time === undefined) {
-      if (elMarker) elMarker.classList.add('hidden');
-      return;
-    }
-    const pct = Math.max(0, Math.min(100, (time / state.duration) * 100));
-    elMarker.style.left = `${pct}%`;
-    elMarker.classList.remove('hidden');
-  }
 
   // Update Status helper
   function setStatus(status, text) {
@@ -335,6 +354,244 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     elStatus.textContent = text;
     onStateChange();
   }
+
+  // ========================================================
+  // Smart Autocomplete Dropdown Search (Google Style)
+  // ========================================================
+  function attachSearchAutocomplete(groupEl, inputEl, fieldKey) {
+    if (!groupEl || !inputEl) return;
+    const btnSearch = groupEl.querySelector('.btn-field-search');
+    if (!btnSearch) return;
+
+    let dropdown = groupEl.querySelector('.search-suggestions-dropdown');
+    if (!dropdown) {
+      dropdown = document.createElement('div');
+      dropdown.className = 'search-suggestions-dropdown hidden';
+      groupEl.appendChild(dropdown);
+    }
+
+    const closeDropdown = () => {
+      dropdown.classList.add('hidden');
+      dropdown.innerHTML = '';
+    };
+
+    btnSearch.addEventListener('click', async (e) => {
+      e.stopPropagation();
+
+      if (!dropdown.classList.contains('hidden')) {
+        closeDropdown();
+        return;
+      }
+
+      // Close all other open dropdowns across the application
+      document.querySelectorAll('.search-suggestions-dropdown').forEach(d => {
+        d.classList.add('hidden');
+        d.innerHTML = '';
+      });
+
+      const currentTitle = state.title.trim();
+      const currentArtist = state.artist.trim();
+
+      if (!currentTitle && !currentArtist && fieldKey !== 'bpm') {
+        showToast('Preencha o Título da Música ou Artista primeiro para buscar sugestões na web.', 'warning', 4000);
+        return;
+      }
+
+      const icon = btnSearch.querySelector('.search-icon');
+      const spinner = btnSearch.querySelector('.search-spinner');
+      if (icon) icon.classList.add('hidden');
+      if (spinner) spinner.classList.remove('hidden');
+
+      dropdown.innerHTML = `
+        <div class="suggestions-loading">
+          <span class="spinner-small"></span>
+          <span>Buscando opções na web...</span>
+        </div>
+      `;
+      dropdown.classList.remove('hidden');
+
+      try {
+        const suggestions = await getSuggestionsForField(fieldKey, {
+          title: currentTitle,
+          artist: currentArtist,
+          audioBuffer: ws ? ws.getDecodedData() : null
+        });
+
+        if (state.isDestroyed) return;
+
+        if (!suggestions || suggestions.length === 0) {
+          dropdown.innerHTML = `
+            <div class="suggestions-empty">
+              <span>Nenhuma sugestão encontrada na web para este campo.</span>
+              <button type="button" class="btn-tiny-close">Fechar</button>
+            </div>
+          `;
+          dropdown.querySelector('.btn-tiny-close')?.addEventListener('click', closeDropdown);
+          return;
+        }
+
+        dropdown.innerHTML = `
+          <div class="suggestions-header">
+            <span class="suggestions-title">Sugestões da web (${suggestions.length})</span>
+            <button type="button" class="btn-close-dropdown" title="Fechar">&times;</button>
+          </div>
+          <div class="suggestions-list">
+            ${suggestions.map((s, sIdx) => `
+              <div class="suggestion-item" data-index="${sIdx}">
+                ${s.image ? `<img class="suggestion-thumb" src="${escapeHtml(s.image)}" alt="Capa" />` : '<div class="suggestion-bullet">🎵</div>'}
+                <div class="suggestion-text">
+                  <div class="suggestion-main">${escapeHtml(s.label || s.value)}</div>
+                  ${s.subtext ? `<div class="suggestion-sub">${escapeHtml(s.subtext)}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        dropdown.querySelector('.btn-close-dropdown')?.addEventListener('click', closeDropdown);
+
+        dropdown.querySelectorAll('.suggestion-item').forEach(itemEl => {
+          itemEl.addEventListener('click', () => {
+            const idx = parseInt(itemEl.getAttribute('data-index'), 10);
+            const chosen = suggestions[idx];
+            if (!chosen) return;
+
+            inputEl.value = chosen.value;
+            state[fieldKey] = chosen.value;
+
+            // Smart auto-fill for companion fields if available
+            if (chosen.extraData) {
+              if (chosen.extraData.year && !state.year) {
+                state.year = chosen.extraData.year;
+                elInputYear.value = chosen.extraData.year;
+              }
+              if (chosen.extraData.genre && !state.genre) {
+                state.genre = chosen.extraData.genre;
+                const genreInput = elExtraContainer?.querySelector('.input-genre');
+                if (genreInput) genreInput.value = chosen.extraData.genre;
+              }
+            }
+
+            if (state.status === 'clean') setStatus('modified', 'Metadados alterados');
+            closeDropdown();
+            showToast(`Opção "${chosen.label || chosen.value}" selecionada!`, 'success', 2500);
+          });
+        });
+
+      } catch (err) {
+        console.warn(`[searchSuggestions] Erro ao buscar sugestões para ${fieldKey}:`, err);
+        dropdown.innerHTML = `
+          <div class="suggestions-empty">
+            <span>Erro na busca de sugestões.</span>
+            <button type="button" class="btn-tiny-close">Fechar</button>
+          </div>
+        `;
+        dropdown.querySelector('.btn-tiny-close')?.addEventListener('click', closeDropdown);
+      } finally {
+        if (icon) icon.classList.remove('hidden');
+        if (spinner) spinner.classList.add('hidden');
+      }
+    });
+  }
+
+  // Attach search dropdowns to Base Album and Year fields
+  const groupAlbum = cardElement.querySelector('.input-search-group[data-field="album"]');
+  const groupYear = cardElement.querySelector('.input-search-group[data-field="year"]');
+  if (groupAlbum && elInputAlbum) attachSearchAutocomplete(groupAlbum, elInputAlbum, 'album');
+  if (groupYear && elInputYear) attachSearchAutocomplete(groupYear, elInputYear, 'year');
+
+  // ========================================================
+  // Dynamic Extra Metadata Fields Grid
+  // ========================================================
+  function renderExtraFields() {
+    if (!elExtraContainer) return;
+    const enabledKeys = getEnabledFieldKeys();
+    elExtraContainer.innerHTML = '';
+
+    const fieldsToRender = ALL_METADATA_FIELDS.filter(f => enabledKeys.has(f.key));
+    if (fieldsToRender.length === 0) return;
+
+    let currentRow = null;
+    let rowCount = 0;
+
+    fieldsToRender.forEach((f) => {
+      if (f.isTextarea) {
+        const row = document.createElement('div');
+        row.className = 'form-row';
+        row.innerHTML = `
+          <div class="form-group flex-full">
+            <label>${escapeHtml(f.label)} <span class="tag-id3">ID3: ${f.id3Tag}</span></label>
+            <div class="input-search-group" data-field="${f.key}">
+              <textarea class="input-meta input-${f.key}" rows="3" placeholder="${escapeHtml(f.placeholder)}">${escapeHtml(state[f.key] || '')}</textarea>
+              <button type="button" class="btn-field-search" title="Buscar opções de ${escapeHtml(f.label)} na web">
+                <span class="search-icon">🔍</span>
+                <span class="search-spinner hidden">⏳</span>
+              </button>
+            </div>
+          </div>
+        `;
+        elExtraContainer.appendChild(row);
+        const ta = row.querySelector('textarea');
+        ta.addEventListener('input', () => {
+          state[f.key] = ta.value.trim();
+          if (state.status === 'clean') setStatus('modified', 'Metadados alterados');
+        });
+        attachSearchAutocomplete(row.querySelector('.input-search-group'), ta, f.key);
+        currentRow = null;
+        rowCount = 0;
+      } else {
+        if (!currentRow || rowCount >= 2) {
+          currentRow = document.createElement('div');
+          currentRow.className = 'form-row';
+          elExtraContainer.appendChild(currentRow);
+          rowCount = 0;
+        }
+
+        const col = document.createElement('div');
+        col.className = 'form-group flex-2';
+        col.innerHTML = `
+          <label>${escapeHtml(f.label)} <span class="tag-id3">ID3: ${f.id3Tag}</span></label>
+          <div class="input-search-group" data-field="${f.key}">
+            <input type="text" class="input-meta input-${f.key}" placeholder="${escapeHtml(f.placeholder)}" value="${escapeHtml(state[f.key] || '')}" />
+            <button type="button" class="btn-field-search" title="Buscar opções de ${escapeHtml(f.label)} na web">
+              <span class="search-icon">🔍</span>
+              <span class="search-spinner hidden">⏳</span>
+            </button>
+          </div>
+        `;
+        currentRow.appendChild(col);
+        rowCount++;
+
+        const inp = col.querySelector('input');
+        inp.addEventListener('input', () => {
+          state[f.key] = inp.value.trim();
+          if (state.status === 'clean') setStatus('modified', 'Metadados alterados');
+        });
+        attachSearchAutocomplete(col.querySelector('.input-search-group'), inp, f.key);
+      }
+    });
+  }
+
+  // Subscribe to global metadata config changes
+  const unsubscribeFieldChanges = subscribeToFieldChanges(() => {
+    if (!state.isDestroyed) {
+      renderExtraFields();
+    }
+  });
+
+  // Initial render of extra fields
+  renderExtraFields();
+
+  // Close dropdowns on outside click
+  const onDocumentClick = (e) => {
+    if (!cardElement.contains(e.target)) {
+      cardElement.querySelectorAll('.search-suggestions-dropdown').forEach(d => {
+        d.classList.add('hidden');
+        d.innerHTML = '';
+      });
+    }
+  };
+  document.addEventListener('click', onDocumentClick);
 
   // Update Cut Regions on WaveSurfer
   let wsRegions = null;
@@ -366,19 +623,18 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
 
     wsRegions.clearRegions();
 
-    // Visual region for discarded start
+    // Visual region for discarded start (1px border, no distracting text)
     if (hasStartCut) {
-      const label = document.createElement('span');
-      label.className = 'region-label';
-      label.textContent = '✂️ Vinheta Início';
-      wsRegions.addRegion({
+      const regStart = wsRegions.addRegion({
         start: 0,
         end: state.cutStart,
         color: 'rgba(239, 68, 68, 0.35)',
         drag: false,
-        resize: false,
-        content: label
+        resize: false
       });
+      if (regStart && regStart.element) {
+        regStart.element.style.borderRight = '1px solid #ef4444';
+      }
     }
 
     // Visual region for kept audio
@@ -390,32 +646,18 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       resize: false
     });
 
-    // Visual region for discarded end
+    // Visual region for discarded end (1px border, no distracting text)
     if (hasEndCut) {
-      const label = document.createElement('span');
-      label.className = 'region-label';
-      label.textContent = '✂️ Vinheta Fim';
-      wsRegions.addRegion({
+      const regEnd = wsRegions.addRegion({
         start: state.cutEnd,
         end: state.duration,
         color: 'rgba(239, 68, 68, 0.35)',
         drag: false,
-        resize: false,
-        content: label
+        resize: false
       });
-    }
-
-    // Update markers
-    if (hasStartCut) {
-      updateMarker(elMarkerStart, state.cutStart);
-    } else if (elMarkerStart) {
-      elMarkerStart.classList.add('hidden');
-    }
-
-    if (hasEndCut) {
-      updateMarker(elMarkerEnd, state.cutEnd);
-    } else if (elMarkerEnd) {
-      elMarkerEnd.classList.add('hidden');
+      if (regEnd && regEnd.element) {
+        regEnd.element.style.borderLeft = '1px solid #ef4444';
+      }
     }
   }
 
@@ -439,8 +681,8 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     container: elWaveformContainer,
     waveColor: '#6366f1',
     progressColor: '#a855f7',
-    cursorColor: '#f43f5e',
-    cursorWidth: 1.5,
+    cursorColor: '#38bdf8',
+    cursorWidth: 1,
     barWidth: 2,
     barGap: 1,
     barRadius: 2,
@@ -471,7 +713,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     
     elTotalDuration.textContent = formatTime(state.duration);
     updateCutDisplay();
-    updateMarker(elMarkerCursor, state.cursorPosition);
   }
 
   // 1. Detect true duration directly via PCM decode in parallel
@@ -514,7 +755,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     state.cursorPosition = Math.max(0, Math.min(newTime, state.duration));
     elCursorTimeVal.textContent = formatTime(state.cursorPosition);
     elCurrentTime.textContent = formatTime(state.cursorPosition);
-    updateMarker(elMarkerCursor, state.cursorPosition);
   });
 
   // Time update during playback
@@ -566,7 +806,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     ws.setTime(newPos);
     state.cursorPosition = newPos;
     elCursorTimeVal.textContent = formatTime(newPos);
-    updateMarker(elMarkerCursor, state.cursorPosition);
   });
 
   elBtnStepForward.addEventListener('click', () => {
@@ -574,7 +813,6 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
     ws.setTime(newPos);
     state.cursorPosition = newPos;
     elCursorTimeVal.textContent = formatTime(newPos);
-    updateMarker(elMarkerCursor, state.cursorPosition);
   });
 
   // Playback Speed Buttons
@@ -698,6 +936,18 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         artist: state.artist,
         album: state.album,
         year: state.year,
+        genre: state.genre,
+        bpm: state.bpm,
+        subtitle: state.subtitle,
+        rating: state.rating,
+        composer: state.composer,
+        trackNumber: state.trackNumber,
+        discNumber: state.discNumber,
+        albumArtist: state.albumArtist,
+        copyright: state.copyright,
+        lyrics: state.lyrics,
+        comment: state.comment,
+        extraMetadata: state.extraMetadata,
         coverBlob: state.coverBlob,
         timeoutSeconds: timeoutSec,
         onProgress: (ratio) => {
@@ -789,6 +1039,20 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
       elInputYear.value = String(meta.year);
     }
 
+    if (meta.genre) state.genre = meta.genre;
+    if (meta.bpm) state.bpm = meta.bpm;
+    if (meta.subtitle) state.subtitle = meta.subtitle;
+    if (meta.rating) state.rating = meta.rating;
+    if (meta.composer) state.composer = meta.composer;
+    if (meta.trackNumber) state.trackNumber = meta.trackNumber;
+    if (meta.discNumber) state.discNumber = meta.discNumber;
+    if (meta.albumArtist) state.albumArtist = meta.albumArtist;
+    if (meta.copyright) state.copyright = meta.copyright;
+    if (meta.lyrics) state.lyrics = meta.lyrics;
+    if (meta.comment) state.comment = meta.comment;
+
+    renderExtraFields();
+
     if (meta.coverBlob && meta.coverUrl) {
       state.coverBlob = meta.coverBlob;
       state.coverUrl = meta.coverUrl;
@@ -801,6 +1065,8 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
   // Cleanup helper
   function destroy() {
     state.isDestroyed = true;
+    unsubscribeFieldChanges();
+    document.removeEventListener('click', onDocumentClick);
     try {
       ws.destroy();
     } catch (_) {}
