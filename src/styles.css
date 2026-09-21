@@ -594,7 +594,13 @@ body {
 .metadata-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
+}
+
+.extra-metadata-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .form-row {
@@ -606,7 +612,7 @@ body {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-width: 140px;
 }
 
@@ -615,8 +621,9 @@ body {
 
 .form-group label {
   font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-bottom: 2px;
 }
 
 .form-group input,
@@ -646,16 +653,6 @@ body {
 
 .flex-full {
   flex: 1 1 100%;
-}
-
-.tag-id3 {
-  font-size: 0.72rem;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.07);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  margin-left: 4px;
 }
 
 /* ========================================================

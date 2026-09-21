@@ -124,6 +124,98 @@ export function detectAudioBPM(audioBuffer) {
 }
 
 /**
+ * Searches Deezer API for track details including exact BPM and explicit status.
+ * Uses JSONP in browser environments or fetch in Node.
+ * @param {string} title 
+ * @param {string} artist 
+ * @returns {Promise<{ bpm: number|null, isExplicit: boolean|null, trackTitle: string, artistName: string }|null>}
+ */
+export async function searchDeezerTrackInfo(title, artist) {
+  const queryParts = [artist, title].filter(Boolean).map(s => s.trim());
+  if (queryParts.length === 0) return null;
+
+  const query = encodeURIComponent(queryParts.join(' '));
+  const searchUrl = `https://api.deezer.com/search?q=${query}&limit=5`;
+
+  try {
+    let searchData;
+    if (typeof window !== 'undefined' && window.document) {
+      searchData = await fetchJsonp(searchUrl);
+    } else {
+      const res = await fetch(searchUrl);
+      searchData = await res.json();
+    }
+
+    if (!searchData || !searchData.data || searchData.data.length === 0) return null;
+
+    const firstMatch = searchData.data[0];
+    const trackId = firstMatch.id;
+    if (!trackId) return null;
+
+    const trackUrl = `https://api.deezer.com/track/${trackId}`;
+    let trackData;
+    if (typeof window !== 'undefined' && window.document) {
+      trackData = await fetchJsonp(trackUrl);
+    } else {
+      const res = await fetch(trackUrl);
+      trackData = await res.json();
+    }
+
+    if (!trackData) return null;
+
+    const bpmVal = typeof trackData.bpm === 'number' && trackData.bpm > 0 ? Math.round(trackData.bpm) : null;
+    const isExplicit = typeof trackData.explicit_lyrics === 'boolean' ? trackData.explicit_lyrics : null;
+
+    return {
+      bpm: bpmVal,
+      isExplicit,
+      trackTitle: trackData.title || firstMatch.title,
+      artistName: trackData.artist?.name || firstMatch.artist?.name
+    };
+  } catch (err) {
+    console.warn('[metadataSearchService] Deezer search failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Universal JSONP fetch helper for browser environments.
+ * @param {string} url 
+ * @returns {Promise<any>}
+ */
+function fetchJsonp(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonp_vox_' + Math.random().toString(36).slice(2, 9) + Date.now();
+    const script = document.createElement('script');
+    const separator = url.includes('?') ? '&' : '?';
+    script.src = `${url}${separator}output=jsonp&callback=${callbackName}`;
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 6000);
+
+    window[callbackName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = (err) => {
+      cleanup();
+      reject(err);
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[callbackName];
+      if (script.parentNode) script.remove();
+    }
+
+    document.head.appendChild(script);
+  });
+}
+
+/**
  * Returns a list of smart, deduplicated suggestions for a specific metadata field.
  *
  * @param {string} fieldKey - e.g. 'album', 'year', 'genre', 'bpm', 'lyrics', 'rating', 'composer', 'subtitle', 'trackNumber', 'discNumber', 'albumArtist'
@@ -212,29 +304,40 @@ export async function getSuggestionsForField(fieldKey, { title, artist, audioBuf
     }
 
     case 'bpm': {
-      // Direct WebAudio PCM analysis
+      // 1. Search Deezer web music database for exact BPM
+      const deezerInfo = await searchDeezerTrackInfo(title, artist);
+      if (deezerInfo && deezerInfo.bpm) {
+        const webBpm = deezerInfo.bpm;
+        suggestions.push({
+          value: String(webBpm),
+          label: `${webBpm} BPM ⭐`,
+          subtext: `⭐ Encontrado na web (${deezerInfo.trackTitle} - ${deezerInfo.artistName})`
+        });
+        suggestions.push({
+          value: String(Math.round(webBpm / 2)),
+          label: `${Math.round(webBpm / 2)} BPM (Meio tempo / Half-time)`,
+          subtext: `Variação de ${webBpm} BPM em metade do andamento`
+        });
+      }
+
+      // 2. Direct WebAudio PCM analysis on the audio file
       if (audioBuffer) {
         const detectedBpm = detectAudioBPM(audioBuffer);
-        if (detectedBpm) {
+        if (detectedBpm && (!deezerInfo || deezerInfo.bpm !== detectedBpm)) {
           suggestions.push({
             value: String(detectedBpm),
-            label: `${detectedBpm} BPM`,
+            label: `${detectedBpm} BPM ⚡`,
             subtext: '⚡ Calculado com precisão diretamente do áudio (WebAudio PCM)'
           });
-          // Half-time and double-time options
           suggestions.push({
             value: String(Math.round(detectedBpm / 2)),
-            label: `${Math.round(detectedBpm / 2)} BPM (Meio tempo / Half-time)`,
-            subtext: 'Variação rítmica em metade da velocidade'
-          });
-          suggestions.push({
-            value: String(Math.round(detectedBpm * 2)),
-            label: `${Math.round(detectedBpm * 2)} BPM (Tempo duplo / Double-time)`,
-            subtext: 'Variação rítmica em dobro da velocidade'
+            label: `${Math.round(detectedBpm / 2)} BPM (Meio tempo)`,
+            subtext: 'Variação calculada do áudio'
           });
         }
       }
-      // Standard tempo presets
+
+      // 3. Standard tempo presets
       const tempoPresets = [
         { value: '128', label: '128 BPM', subtext: 'Padrão House / Dance / EDM' },
         { value: '120', label: '120 BPM', subtext: 'Padrão Pop / Disco moderado' },
@@ -267,13 +370,43 @@ export async function getSuggestionsForField(fieldKey, { title, artist, audioBuf
     }
 
     case 'rating': {
-      suggestions.push(
-        { value: 'Clean', label: 'Livre / Clean (Sem conteúdo explícito)', subtext: 'Recomendado para todas as idades' },
-        { value: 'Explicit', label: 'Explícito / Explicit (Parental Advisory)', subtext: 'Contém linguagem adulta ou temas fortes' },
-        { value: '+12', label: 'Classificação 12 Anos', subtext: 'Não recomendado para menores de 12 anos' },
-        { value: '+16', label: 'Classificação 16 Anos', subtext: 'Não recomendado para menores de 16 anos' },
-        { value: '+18', label: 'Classificação 18 Anos (Adulto)', subtext: 'Restrito para maiores de 18 anos' }
-      );
+      // Check iTunes and Deezer for explicitness to order suggestions
+      let isExplicit = null;
+      for (const item of itunesResults) {
+        if (item.trackExplicitness === 'explicit' || item.collectionExplicitness === 'explicit') {
+          isExplicit = true;
+          break;
+        } else if (item.trackExplicitness === 'notExplicit' || item.trackExplicitness === 'cleaned') {
+          if (isExplicit === null) isExplicit = false;
+        }
+      }
+
+      if (isExplicit === null) {
+        const deezerInfo = await searchDeezerTrackInfo(title, artist);
+        if (deezerInfo && typeof deezerInfo.isExplicit === 'boolean') {
+          isExplicit = deezerInfo.isExplicit;
+        }
+      }
+
+      if (isExplicit === true) {
+        suggestions.push(
+          { value: 'Explicit', label: 'Explícito / Explicit (Parental Advisory) ⭐', subtext: '⭐ Sugerido pela web: Conteúdo explícito identificado no catálogo' },
+          { value: '+18', label: 'Classificação 18 Anos (Adulto)', subtext: 'Restrito para maiores de 18 anos' },
+          { value: '+16', label: 'Classificação 16 Anos', subtext: 'Não recomendado para menores de 16 anos' },
+          { value: '+14', label: 'Classificação 14 Anos', subtext: 'Não recomendado para menores de 14 anos' },
+          { value: '+12', label: 'Classificação 12 Anos', subtext: 'Não recomendado para menores de 12 anos' },
+          { value: 'Clean', label: 'Livre / Clean (Sem conteúdo explícito)', subtext: 'Classificação livre para todas as idades' }
+        );
+      } else {
+        suggestions.push(
+          { value: 'Clean', label: 'Livre / Clean (Sem conteúdo explícito) ⭐', subtext: '⭐ Sugerido pela web: Faixa catalogada como livre para todas as idades' },
+          { value: 'Explicit', label: 'Explícito / Explicit (Parental Advisory)', subtext: 'Contém linguagem adulta ou temas fortes' },
+          { value: '+12', label: 'Classificação 12 Anos', subtext: 'Não recomendado para menores de 12 anos' },
+          { value: '+14', label: 'Classificação 14 Anos', subtext: 'Não recomendado para menores de 14 anos' },
+          { value: '+16', label: 'Classificação 16 Anos', subtext: 'Não recomendado para menores de 16 anos' },
+          { value: '+18', label: 'Classificação 18 Anos (Adulto)', subtext: 'Restrito para maiores de 18 anos' }
+        );
+      }
       break;
     }
 

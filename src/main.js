@@ -291,7 +291,6 @@ function renderMetadataConfigModal() {
           <span class="checkbox-custom"></span>
           <div class="field-info">
             <span class="field-title">${f.label}</span>
-            <span class="field-tag">ID3: ${f.id3Tag}</span>
           </div>
         </label>
       </div>

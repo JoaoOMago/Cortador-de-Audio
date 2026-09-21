@@ -520,7 +520,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         row.className = 'form-row';
         row.innerHTML = `
           <div class="form-group flex-full">
-            <label>${escapeHtml(f.label)} <span class="tag-id3">ID3: ${f.id3Tag}</span></label>
+            <label>${escapeHtml(f.label)}</label>
             <div class="input-search-group" data-field="${f.key}">
               <textarea class="input-meta input-${f.key}" rows="3" placeholder="${escapeHtml(f.placeholder)}">${escapeHtml(state[f.key] || '')}</textarea>
               <button type="button" class="btn-field-search" title="Buscar opções de ${escapeHtml(f.label)} na web">
@@ -550,7 +550,7 @@ export async function createTrackCard({ file, index, onRemove, onStateChange = (
         const col = document.createElement('div');
         col.className = 'form-group flex-2';
         col.innerHTML = `
-          <label>${escapeHtml(f.label)} <span class="tag-id3">ID3: ${f.id3Tag}</span></label>
+          <label>${escapeHtml(f.label)}</label>
           <div class="input-search-group" data-field="${f.key}">
             <input type="text" class="input-meta input-${f.key}" placeholder="${escapeHtml(f.placeholder)}" value="${escapeHtml(state[f.key] || '')}" />
             <button type="button" class="btn-field-search" title="Buscar opções de ${escapeHtml(f.label)} na web">
