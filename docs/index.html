@@ -8,9 +8,9 @@
     <link rel="icon" type="image/x-icon" href="assets/icons/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/assets/index-BJcIs4dD.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BNNbvoSp.css">
   </head>
   <body>
     <div class="app-container">
@@ -24,8 +24,8 @@
           </div>
         </div>
         <div class="header-badges">
-          <button type="button" class="btn btn-secondary btn-header-config" id="btn-open-metadata-config-header" title="Configurar campos extras de metadados para todas as músicas">
-            ⚙️ Configurar Metadados
+          <button type="button" class="btn btn-secondary btn-header-config" id="btn-open-metadata-config-header" title="Configurar tempo limite e campos de metadados">
+            ⚙️ Configurações
           </button>
           <span class="badge-privacy">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -64,22 +64,10 @@
         <div class="list-count">
           <span id="total-tracks-count">0 músicas carregadas</span>
         </div>
-        <div class="toolbar-settings">
-          <button type="button" class="btn btn-secondary btn-toolbar-config" id="btn-open-metadata-config-toolbar" title="Configurar campos extras de metadados para todas as músicas">
-            ⚙️ Campos de Metadados
-          </button>
-          <label for="input-timeout-limit" class="timeout-label" title="Tempo máximo que o sistema aguardará por música antes de abortar com erro">
-            ⏱️ Limite por música:
-          </label>
-          <div class="timeout-input-group" title="Se um arquivo demorar mais que este tempo, ele será abortado com erro no log">
-            <input type="number" id="input-timeout-limit" value="2" min="0.5" max="30" step="0.5" />
-            <span>min</span>
-          </div>
-        </div>
       </section>
 
       <!-- Empty State -->
-      <div class="empty-state" id="empty-placeholder" style="text-align: center; padding: 40px 20px; color: #64748b;">
+      <div class="empty-state hidden" id="empty-placeholder" style="text-align: center; padding: 40px 20px; color: #64748b;">
         <p>Nenhuma música adicionada ainda. Arraste arquivos para começar a edição!</p>
       </div>
 
@@ -116,40 +104,92 @@
       </div>
     </aside>
 
-    <!-- Global Metadata Configuration Modal -->
+    <!-- Global Configuration Modal -->
     <div class="modal-overlay hidden" id="modal-metadata-config">
       <div class="modal-dialog modal-metadata-dialog">
         <div class="modal-header">
           <div class="modal-title-group">
             <span class="modal-icon">⚙️</span>
             <div>
-              <h3 class="modal-title">Configurar Campos de Metadados (Tags ID3)</h3>
-              <p class="modal-subtitle">Escolha quais campos adicionais serão exibidos e editados em todas as músicas</p>
+              <h3 class="modal-title">Configurações do Editor</h3>
+              <p class="modal-subtitle">Ajuste o tempo limite de processamento e escolha os campos de metadados</p>
             </div>
           </div>
           <button type="button" class="btn-close-modal" id="btn-close-metadata-modal">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="metadata-select-all-row">
-            <label class="checkbox-label checkbox-all-label">
-              <input type="checkbox" id="checkbox-toggle-all-metadata" />
-              <span class="checkbox-custom"></span>
-              <strong>Selecionar todas as opções</strong>
-            </label>
-            <span class="badge-info-note">Aplica a todas as faixas da lista</span>
+          <!-- Section 1: Processing Timeout -->
+          <div class="modal-section modal-timeout-section">
+            <div class="modal-section-header">
+              <div class="modal-section-title-group">
+                <span class="modal-section-icon">⏱️</span>
+                <div>
+                  <h4 class="modal-section-title">Tempo Limite por Música</h4>
+                  <p class="modal-section-subtitle">Tempo máximo que o motor aguarda no corte de cada faixa antes de abortar.</p>
+                </div>
+              </div>
+              <div class="timeout-modal-input-wrapper">
+                <input type="number" id="input-timeout-limit" value="2" min="0.5" max="30" step="0.5" />
+                <span>minutos</span>
+              </div>
+            </div>
           </div>
-          <div class="metadata-fields-grid" id="metadata-fields-grid">
-            <!-- Dynamically populated from metadataConfigService -->
+
+          <!-- Section 2: Cover Art & Crop Settings -->
+          <div class="modal-section modal-cover-section">
+            <div class="modal-section-header">
+              <div class="modal-section-title-group">
+                <span class="modal-section-icon">🖼️</span>
+                <div>
+                  <h4 class="modal-section-title">Capa do Álbum e Imagens</h4>
+                  <p class="modal-section-subtitle">Comportamento de corte para artes de capa (aceita .avif, .webp, .png, .jpg, etc.).</p>
+                </div>
+              </div>
+            </div>
+            <div class="crop-setting-card">
+              <label class="checkbox-label">
+                <input type="checkbox" id="checkbox-enable-crop-modal" checked />
+                <span class="checkbox-custom"></span>
+                <div class="setting-text-group">
+                  <strong>Habilitar assistente de corte para imagens não quadradas</strong>
+                  <p class="setting-desc">Se a foto não for 1:1, abre a janela de ajuste para você posicionar e usar o zoom. Imagens já quadradas (1:1) entram direto sem abrir o assistente.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 3: Metadata Fields Selection -->
+          <div class="modal-section modal-fields-section">
+            <div class="modal-section-header">
+              <div class="modal-section-title-group">
+                <span class="modal-section-icon">🏷️</span>
+                <div>
+                  <h4 class="modal-section-title">Campos Extras de Metadados</h4>
+                  <p class="modal-section-subtitle">Escolha quais campos serão exibidos e editados em todas as músicas da lista.</p>
+                </div>
+              </div>
+            </div>
+            <div class="metadata-select-all-row">
+              <label class="checkbox-label checkbox-all-label">
+                <input type="checkbox" id="checkbox-toggle-all-metadata" />
+                <span class="checkbox-custom"></span>
+                <strong>Selecionar todas as opções</strong>
+              </label>
+              <span class="badge-info-note">Aplica a todas as faixas</span>
+            </div>
+            <div class="metadata-fields-grid" id="metadata-fields-grid">
+              <!-- Dynamically populated from metadataConfigService -->
+            </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary" id="btn-save-metadata-config">Concluir</button>
+          <button type="button" class="btn btn-primary" id="btn-save-metadata-config">Salvar Configurações</button>
         </div>
       </div>
     </div>
 
     <!-- Toast Notifications Container -->
     <div class="toast-container" id="toast-container"></div>
-
+
   </body>
 </html>
