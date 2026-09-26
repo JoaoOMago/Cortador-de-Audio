@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="/src/main.js"></script>
     <link rel="stylesheet" href="/src/styles.css">
   </head>
   <body>
@@ -16,38 +17,63 @@
       <!-- Header -->
       <header class="app-header">
         <div class="brand-group">
-          <div class="brand-icon">🗿</div>
+          <div class="brand-icon" title="vox acies — Digital Audio Workstation">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <line x1="3" y1="12" x2="3" y2="12.01"></line>
+              <line x1="6" y1="8" x2="6" y2="16"></line>
+              <line x1="9" y1="4" x2="9" y2="20"></line>
+              <line x1="12" y1="2" x2="12" y2="22"></line>
+              <line x1="15" y1="6" x2="15" y2="18"></line>
+              <line x1="18" y1="9" x2="18" y2="15"></line>
+              <line x1="21" y1="12" x2="21" y2="12.01"></line>
+            </svg>
+          </div>
           <div>
             <h1 class="brand-title">vox acies</h1>
-            <p class="brand-subtitle">Editor de Audio (thumbs, cortes, informações)</p>
+            <p class="brand-subtitle">Estúdio de Áudio em Lote (ondas, cortes, tags, capas)</p>
           </div>
         </div>
         <div class="header-badges">
-          <button type="button" class="btn btn-secondary btn-header-config" id="btn-open-metadata-config-header" title="Configurar campos extras de metadados para todas as músicas">
-            ⚙️ Configurar Metadados
+          <button type="button" class="btn btn-secondary btn-header-config" id="btn-open-metadata-config-header" title="Configurar tempo limite e campos de metadados">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>Configurações</span>
           </button>
           <span class="badge-privacy">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
-            100% Client-Side (Zero Servidor)
+            <span>100% Client-Side (Zero Servidor)</span>
           </span>
         </div>
       </header>
 
       <!-- Upload / Drag and Drop Area -->
       <section class="dropzone-container" id="dropzone">
+        <div class="dropzone-waveform-bg" aria-hidden="true">
+          <span style="--h: 30%;"></span><span style="--h: 55%;"></span><span style="--h: 80%;"></span>
+          <span style="--h: 40%;"></span><span style="--h: 90%;"></span><span style="--h: 100%;"></span>
+          <span style="--h: 70%;"></span><span style="--h: 35%;"></span><span style="--h: 85%;"></span>
+          <span style="--h: 60%;"></span><span style="--h: 75%;"></span><span style="--h: 95%;"></span>
+          <span style="--h: 65%;"></span><span style="--h: 25%;"></span><span style="--h: 50%;"></span>
+          <span style="--h: 80%;"></span><span style="--h: 90%;"></span><span style="--h: 60%;"></span>
+          <span style="--h: 45%;"></span><span style="--h: 75%;"></span><span style="--h: 100%;"></span>
+          <span style="--h: 85%;"></span><span style="--h: 55%;"></span><span style="--h: 30%;"></span>
+        </div>
         <div class="dropzone-content">
           <div class="dropzone-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
           </div>
           <h2 class="dropzone-title">Arraste suas músicas aqui ou clique para selecionar</h2>
-          <p class="dropzone-description">Selecione vários arquivos de uma vez para editar em lote</p>
-          <div class="dropzone-formats">Formatos aceitos: MP3, MPEG, WAV, M4A, FLAC, OGG, OPUS, WMA, AIFF, AAC, ALAC, APE, LRC...</div>
+          <p class="dropzone-description">Selecione vários arquivos de áudio para carregar nas trilhas do editor</p>
+          <div class="dropzone-formats">Formatos suportados: MP3, WAV, M4A, FLAC, OGG, OPUS, AAC, WMA, AIFF, ALAC, APE, LRC...</div>
           <input
             type="file"
             id="audio-file-input"
@@ -61,24 +87,12 @@
       <!-- Tracks List Toolbar -->
       <section class="list-toolbar hidden" id="list-toolbar">
         <div class="list-count">
-          <span id="total-tracks-count">0 músicas carregadas</span>
-        </div>
-        <div class="toolbar-settings">
-          <button type="button" class="btn btn-secondary btn-toolbar-config" id="btn-open-metadata-config-toolbar" title="Configurar campos extras de metadados para todas as músicas">
-            ⚙️ Campos de Metadados
-          </button>
-          <label for="input-timeout-limit" class="timeout-label" title="Tempo máximo que o sistema aguardará por música antes de abortar com erro">
-            ⏱️ Limite por música:
-          </label>
-          <div class="timeout-input-group" title="Se um arquivo demorar mais que este tempo, ele será abortado com erro no log">
-            <input type="number" id="input-timeout-limit" value="2" min="0.5" max="30" step="0.5" />
-            <span>min</span>
-          </div>
+          <span id="total-tracks-count">0 trilhas carregadas</span>
         </div>
       </section>
 
       <!-- Empty State -->
-      <div class="empty-state" id="empty-placeholder" style="text-align: center; padding: 40px 20px; color: #64748b;">
+      <div class="empty-state hidden" id="empty-placeholder">
         <p>Nenhuma música adicionada ainda. Arraste arquivos para começar a edição!</p>
       </div>
 
@@ -96,10 +110,19 @@
         </div>
         <div class="bar-actions">
           <button type="button" class="btn btn-secondary" id="btn-clear-all">
-            Limpar lista
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Limpar lista</span>
           </button>
           <button type="button" class="btn btn-success btn-download-all" id="btn-download-all">
-            📦 Baixar tudo (.ZIP)
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Baixar tudo (.ZIP)</span>
           </button>
         </div>
       </div>
@@ -115,41 +138,112 @@
       </div>
     </aside>
 
-    <!-- Global Metadata Configuration Modal -->
+    <!-- Global Configuration Modal -->
     <div class="modal-overlay hidden" id="modal-metadata-config">
       <div class="modal-dialog modal-metadata-dialog">
         <div class="modal-header">
           <div class="modal-title-group">
-            <span class="modal-icon">⚙️</span>
+            <span class="modal-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </span>
             <div>
-              <h3 class="modal-title">Configurar Campos de Metadados (Tags ID3)</h3>
-              <p class="modal-subtitle">Escolha quais campos adicionais serão exibidos e editados em todas as músicas</p>
+              <h3 class="modal-title">Configurações do Editor</h3>
+              <p class="modal-subtitle">Ajuste o tempo limite de processamento e escolha os campos de metadados</p>
             </div>
           </div>
           <button type="button" class="btn-close-modal" id="btn-close-metadata-modal">&times;</button>
         </div>
         <div class="modal-body">
-          <div class="metadata-select-all-row">
-            <label class="checkbox-label checkbox-all-label">
-              <input type="checkbox" id="checkbox-toggle-all-metadata" />
-              <span class="checkbox-custom"></span>
-              <strong>Selecionar todas as opções</strong>
-            </label>
-            <span class="badge-info-note">Aplica a todas as faixas da lista</span>
+          <!-- Section 1: Processing Timeout -->
+          <div class="modal-section modal-timeout-section">
+            <div class="modal-section-header">
+              <div class="modal-section-title-group">
+                <span class="modal-section-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </span>
+                <div>
+                  <h4 class="modal-section-title">Tempo Limite por Música</h4>
+                  <p class="modal-section-subtitle">Tempo máximo que o motor aguarda no corte de cada faixa antes de abortar.</p>
+                </div>
+              </div>
+              <div class="timeout-modal-input-wrapper">
+                <input type="number" id="input-timeout-limit" value="2" min="0.5" max="30" step="0.5" />
+                <span>minutos</span>
+              </div>
+            </div>
           </div>
-          <div class="metadata-fields-grid" id="metadata-fields-grid">
-            <!-- Dynamically populated from metadataConfigService -->
+
+          <!-- Section 2: Cover Art & Crop Settings -->
+          <div class="modal-section modal-cover-section">
+            <div class="modal-section-header">
+              <div class="modal-section-title-group">
+                <span class="modal-section-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                </span>
+                <div>
+                  <h4 class="modal-section-title">Capa do Álbum e Imagens</h4>
+                  <p class="modal-section-subtitle">Comportamento de corte para artes de capa (aceita .avif, .webp, .png, .jpg, etc.).</p>
+                </div>
+              </div>
+            </div>
+            <div class="crop-setting-card">
+              <label class="checkbox-label">
+                <input type="checkbox" id="checkbox-enable-crop-modal" checked />
+                <span class="checkbox-custom"></span>
+                <div class="setting-text-group">
+                  <strong>Habilitar assistente de corte para imagens não quadradas</strong>
+                  <p class="setting-desc">Se a foto não for 1:1, abre a janela de ajuste para você posicionar e usar o zoom. Imagens já quadradas (1:1) entram direto sem abrir o assistente.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 3: Metadata Fields Selection -->
+          <div class="modal-section modal-fields-section">
+            <div class="modal-section-header">
+              <div class="modal-section-title-group">
+                <span class="modal-section-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                  </svg>
+                </span>
+                <div>
+                  <h4 class="modal-section-title">Campos Extras de Metadados</h4>
+                  <p class="modal-section-subtitle">Escolha quais campos serão exibidos e editados em todas as músicas da lista.</p>
+                </div>
+              </div>
+            </div>
+            <div class="metadata-select-all-row">
+              <label class="checkbox-label checkbox-all-label">
+                <input type="checkbox" id="checkbox-toggle-all-metadata" />
+                <span class="checkbox-custom"></span>
+                <strong>Selecionar todas as opções</strong>
+              </label>
+              <span class="badge-info-note">Aplica a todas as faixas</span>
+            </div>
+            <div class="metadata-fields-grid" id="metadata-fields-grid">
+              <!-- Dynamically populated from metadataConfigService -->
+            </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-primary" id="btn-save-metadata-config">Concluir</button>
+          <button type="button" class="btn btn-primary" id="btn-save-metadata-config">Salvar Configurações</button>
         </div>
       </div>
     </div>
 
     <!-- Toast Notifications Container -->
     <div class="toast-container" id="toast-container"></div>
-
-    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

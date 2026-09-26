@@ -1,5 +1,5 @@
 {
-  "name": "vox-acies",
+  "name": "epic-mendeleev",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -13,8 +13,7 @@
     "buffer": "^6.0.3",
     "jsmediatags": "^3.9.7",
     "jszip": "^3.10.1",
-    "music-metadata-browser": "^2.5.10",
-    "wavesurfer.js": "^7.8.6"
+    "music-metadata-browser": "^2.5.11"
   },
   "devDependencies": {
     "vite": "^8.2.2"

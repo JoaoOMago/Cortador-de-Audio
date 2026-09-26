@@ -1,18 +1,21 @@
 import { defineConfig } from 'vite';
-import path from 'path';
 
 export default defineConfig({
   base: './',
   build: {
     outDir: 'docs',
-    target: 'esnext'
+    emptyOutDir: true,
+    rollupOptions: {
+      external: ['react-native-fs'],
+    },
+    rolldownOptions: {
+      external: ['react-native-fs'],
+    },
   },
-  define: {
-    global: 'globalThis'
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
   },
-  resolve: {
-    alias: {
-      jsmediatags: path.resolve(__dirname, 'node_modules/jsmediatags/dist/jsmediatags.min.js')
-    }
-  }
 });
