@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#0b0e17"/>
+  <rect width="30" height="30" x="1" y="1" rx="7" stroke="#1e2536" stroke-width="1"/>
+  <!-- Musical Note (♪) in vertical DAW soundwave bars -->
+  <g stroke="#22d3ee" stroke-width="2.6" stroke-linecap="round">
+    <!-- Cabeça da nota (baixo esquerdo inclinada) -->
+    <line x1="5.5" y1="20" x2="5.5" y2="24"/>
+    <line x1="9.5" y1="17.5" x2="9.5" y2="26"/>
+    <line x1="13.5" y1="16" x2="13.5" y2="25"/>
+    <!-- Haste principal vertical -->
+    <line x1="17.5" y1="4.5" x2="17.5" y2="23"/>
+    <!-- Bandeira da colcheia (desce à direita) -->
+    <line x1="21.5" y1="5.5" x2="21.5" y2="13.5"/>
+    <line x1="25.5" y1="8" x2="25.5" y2="18"/>
+    <line x1="28.5" y1="12.5" x2="28.5" y2="17"/>
+  </g>
+</svg>
